@@ -15,6 +15,7 @@
                     <span style="color: #6b7280; font-size: 14px;">
                         👤 <span id="currentUser"></span> (<span id="currentRole"></span>)
                     </span>
+                    <button class="btn btn-secondary btn-small" onclick="showPage('users')" id="manageUsersBtn" style="display: none;">Manage Users</button>
                     <button class="btn btn-secondary btn-small" onclick="handleLogout()">Logout</button>
                 </div>
             </div>
@@ -149,10 +150,37 @@
                 </div>
             </div>
         </div>
+
+        <!-- User Management Page (Admin Only) -->
+        <div id="users" class="page">
+            <div class="card">
+                <h2>👥 User Management</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr>
+                            <td colspan="6" class="empty-state">Loading users...</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="btn-group">
+                    <button class="btn btn-secondary" onclick="refreshUsers()">Refresh</button>
+                    <button class="btn btn-secondary" onclick="showPage('dashboard')" style="margin-left: auto;">← Back to Dashboard</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:5000';
         let currentTasks = [];
         let currentFlocs = [];
         let currentLocations = [];
@@ -165,34 +193,40 @@
         // Check authentication on load
         async function checkAuth() {
             try {
-                const response = await fetch(`${API_BASE}/api/auth/me`, {
+                const response = await fetch(`/api/auth/me`, {
                     credentials: 'include'
                 });
                 if (!response.ok) {
-                    window.location.href = `${API_BASE}/login.html`;
+                    window.location.href = `/login.html`;
                     return false;
                 }
                 currentUserData = await response.json();
                 document.getElementById('currentUser').textContent = currentUserData.username;
                 document.getElementById('currentRole').textContent = currentUserData.role;
+                
+                // Show "Manage Users" button only for admins
+                if (currentUserData.role === 'admin') {
+                    document.getElementById('manageUsersBtn').style.display = 'block';
+                }
+                
                 return true;
             } catch (error) {
                 console.error('Auth check failed:', error);
-                window.location.href = `${API_BASE}/login.html`;
+                window.location.href = `/login.html`;
                 return false;
             }
         }
 
         async function handleLogout() {
             try {
-                await fetch(`${API_BASE}/api/auth/logout`, { 
+                await fetch(`/api/auth/logout`, { 
                     method: 'POST',
                     credentials: 'include'
                 });
-                window.location.href = `${API_BASE}/login.html`;
+                window.location.href = `/login.html`;
             } catch (error) {
                 console.error('Logout error:', error);
-                window.location.href = `${API_BASE}/login.html`;
+                window.location.href = `/login.html`;
             }
         }
 
@@ -205,6 +239,8 @@
                 refreshFlocs();
             } else if (pageId === 'dashboard') {
                 loadDashboard();
+            } else if (pageId === 'users') {
+                refreshUsers();
             }
         }
 
@@ -212,9 +248,9 @@
         async function loadDashboard() {
             try {
                 const [tasks, locations, flocs] = await Promise.all([
-                    fetch(`${API_BASE}/tasks`).then(r => r.json()),
-                    fetch(`${API_BASE}/locations`).then(r => r.json()),
-                    fetch(`${API_BASE}/funclocations`).then(r => r.json())
+                    fetch(`/tasks`).then(r => r.json()),
+                    fetch(`/locations`).then(r => r.json()),
+                    fetch(`/funclocations`).then(r => r.json())
                 ]);
 
                 currentTasks = tasks;
@@ -531,7 +567,7 @@
             formData.append('file', file);
 
             try {
-                const response = await fetch(`${API_BASE}/tasks/${selectedTaskId}/attachments`, {
+                const response = await fetch(`/tasks/${selectedTaskId}/attachments`, {
                     method: 'POST',
                     body: formData
                 });
@@ -552,14 +588,14 @@
         }
 
         async function downloadAttachment(attachmentId) {
-            window.open(`${API_BASE}/attachments/${attachmentId}/download`, '_blank');
+            window.open(`/attachments/${attachmentId}/download`, '_blank');
         }
 
         async function deleteAttachment(attachmentId) {
             if (!confirm('Delete this attachment?')) return;
 
             try {
-                await fetch(`${API_BASE}/attachments/${attachmentId}`, { method: 'DELETE' });
+                await fetch(`/attachments/${attachmentId}`, { method: 'DELETE' });
                 currentAttachments = currentAttachments.filter(a => a.id !== attachmentId);
                 displayAttachments();
                 alert('Attachment deleted');
@@ -584,7 +620,7 @@
             }
 
             try {
-                await fetch(`${API_BASE}/tasks/${selectedTaskId}`, {
+                await fetch(`/tasks/${selectedTaskId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -613,7 +649,7 @@
             if (!selectedTaskId || !confirm('Delete this task?')) return;
 
             try {
-                await fetch(`${API_BASE}/tasks/${selectedTaskId}`, { method: 'DELETE' });
+                await fetch(`/tasks/${selectedTaskId}`, { method: 'DELETE' });
                 await loadDashboard();
                 alert('Task deleted successfully!');
                 showPage('dashboard');
@@ -626,7 +662,7 @@
         // Functional Locations Functions
         async function refreshFlocs() {
             try {
-                const flocs = await fetch(`${API_BASE}/funclocations`).then(r => r.json());
+                const flocs = await fetch(`/funclocations`).then(r => r.json());
                 currentFlocs = flocs;
 
                 buildFlocTree(flocs);
@@ -720,7 +756,7 @@
             }
 
             try {
-                await fetch(`${API_BASE}/funclocations/${selectedFlocId}`, {
+                await fetch(`/funclocations/${selectedFlocId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -743,7 +779,7 @@
             if (!selectedFlocId || !confirm('Delete this functional location? You must first reparent/delete any children and move/delete any tasks.')) return;
 
             try {
-                const response = await fetch(`${API_BASE}/funclocations/${selectedFlocId}`, { method: 'DELETE' });
+                const response = await fetch(`/funclocations/${selectedFlocId}`, { method: 'DELETE' });
                 if (!response.ok) {
                     const data = await response.json();
                     alert('Failed to delete: ' + data.message);
@@ -771,7 +807,7 @@
             }
 
             try {
-                await fetch(`${API_BASE}/funclocations`, {
+                await fetch(`/funclocations`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -789,6 +825,100 @@
             } catch (error) {
                 console.error('Error adding functional location:', error);
                 alert('Failed to add functional location');
+            }
+        }
+
+        // User Management Functions
+        async function refreshUsers() {
+            if (currentUserData.role !== 'admin') {
+                alert('Admin access required');
+                showPage('dashboard');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/users`, {
+                    credentials: 'include'
+                });
+                const users = await response.json();
+
+                const tbody = document.getElementById('usersTableBody');
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No users found</td></tr>';
+                } else {
+                    tbody.innerHTML = users.map(u => `
+                        <tr>
+                            <td><strong>${u.username}</strong></td>
+                            <td>${u.email}</td>
+                            <td>
+                                <select onchange="updateUserRole(${u.id}, this.value)" ${u.username === 'admin' ? 'disabled' : ''}>
+                                    <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+                                    <option value="technician" ${u.role === 'technician' ? 'selected' : ''}>Technician</option>
+                                    <option value="viewer" ${u.role === 'viewer' ? 'selected' : ''}>Viewer</option>
+                                </select>
+                            </td>
+                            <td>
+                                <span style="color: ${u.is_active ? '#10b981' : '#ef4444'};">
+                                    ${u.is_active ? '✓ Active' : '✗ Disabled'}
+                                </span>
+                            </td>
+                            <td>${new Date(u.created_at).toLocaleDateString()}</td>
+                            <td>
+                                ${u.username !== 'admin' ? `
+                                    <button class="btn btn-secondary btn-small" onclick="toggleUserStatus(${u.id}, ${!u.is_active})">
+                                        ${u.is_active ? 'Disable' : 'Enable'}
+                                    </button>
+                                ` : '<span style="color: #9ca3af;">Protected</span>'}
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading users:', error);
+                alert('Failed to load users');
+            }
+        }
+
+        async function updateUserRole(userId, newRole) {
+            if (!confirm(`Change this user's role to ${newRole}?`)) {
+                refreshUsers(); // Reset dropdown
+                return;
+            }
+
+            try {
+                await fetch(`/api/users/${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ role: newRole })
+                });
+                alert('User role updated');
+                refreshUsers();
+            } catch (error) {
+                console.error('Error updating user:', error);
+                alert('Failed to update user role');
+                refreshUsers();
+            }
+        }
+
+        async function toggleUserStatus(userId, newStatus) {
+            const action = newStatus ? 'enable' : 'disable';
+            if (!confirm(`Are you sure you want to ${action} this user?`)) {
+                return;
+            }
+
+            try {
+                await fetch(`/api/users/${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ is_active: newStatus })
+                });
+                alert(`User ${action}d successfully`);
+                refreshUsers();
+            } catch (error) {
+                console.error('Error updating user status:', error);
+                alert('Failed to update user status');
             }
         }
 
