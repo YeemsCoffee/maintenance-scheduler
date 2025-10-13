@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maintenance Scheduler</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h1>🔧 Maintenance Scheduler</h1>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span style="color: #6b7280; font-size: 14px;">
+                        👤 <span id="currentUser"></span> (<span id="currentRole"></span>)
+                    </span>
+                    <button class="btn btn-secondary btn-small" onclick="handleLogout()">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dashboard Page -->
+        <div id="dashboard" class="page active">
+            <div class="grid">
+                <div class="card">
+                    <h2>🏗️ Functional Location Structure</h2>
+                    <div class="tree" id="flocTreeNav">
+                        <div class="empty-state">Loading...</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📋 Location Details & Tasks</h2>
+                    <div id="flocTaskView">
+                        <div class="empty-state">Select a functional location from the tree</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tasks Management Page -->
+        <div id="tasks" class="page">
+            <div class="card">
+                <h2>✏️ Edit Task</h2>
+                <div class="form-group">
+                    <label>Task Name</label>
+                    <input type="text" id="taskName" placeholder="e.g., Oil change">
+                </div>
+                <div class="form-group">
+                    <label>Frequency (days)</label>
+                    <input type="number" id="taskFreq" placeholder="90">
+                </div>
+                <div class="form-group">
+                    <label>Next Run Date</label>
+                    <input type="date" id="taskDate">
+                </div>
+                <div class="form-group">
+                    <label>Location</label>
+                    <select id="taskLocation">
+                        <option value="">Select location...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Functional Location</label>
+                    <select id="taskFuncLoc">
+                        <option value="">Select functional location...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Part Name</label>
+                    <input type="text" id="taskPart" placeholder="Optional">
+                </div>
+                <div class="two-col-grid">
+                    <div class="form-group">
+                        <label>Lead Time (days)</label>
+                        <input type="number" id="taskLead" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Vendor</label>
+                        <input type="text" id="taskVendor" placeholder="Optional">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Vendor Part Number</label>
+                    <input type="text" id="taskVendorPN" placeholder="Optional">
+                </div>
+                
+                <div class="form-group">
+                    <label>📎 Attachments (SOPs, Job Aids, etc.)</label>
+                    <div id="attachmentsList" style="margin-bottom: 10px;">
+                        <!-- Attachments will be listed here -->
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.gif,.xlsx,.xls" style="flex: 1;">
+                        <button class="btn btn-secondary btn-small" onclick="uploadFile()">Upload</button>
+                    </div>
+                    <p style="font-size: 12px; color: #9ca3af; margin-top: 5px;">Allowed: PDF, Word, Excel, Images, Text files (Max 16MB)</p>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="updateTaskBtn" onclick="updateTask()">Save Changes</button>
+                    <button class="btn btn-danger" id="deleteTaskBtn" onclick="deleteTask()">Delete Task</button>
+                    <button class="btn btn-secondary" onclick="showPage('dashboard')">← Back to Dashboard</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Functional Locations Management Page -->
+        <div id="funcloc" class="page">
+            <div class="grid">
+                <div class="card">
+                    <h2>🏗️ Functional Location Structure</h2>
+                    <div class="tree" id="flocTree">
+                        <div class="empty-state">Loading...</div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-secondary" onclick="refreshFlocs()">Refresh</button>
+                        <button class="btn btn-secondary" onclick="showPage('dashboard')" style="margin-left: auto;">← Back to Dashboard</button>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="card" style="margin-bottom: 20px;">
+                        <h2>✏️ Edit Selected</h2>
+                        <div id="flocEditSection">
+                            <p style="color: #9ca3af; text-align: center; padding: 20px;">Select a functional location from the tree</p>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h2>➕ Add New Location</h2>
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" id="newFlocName" placeholder="e.g., Building A">
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="newFlocDesc" placeholder="Optional description"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Parent Location (optional)</label>
+                            <select id="newFlocParent">
+                                <option value="">(None)</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" onclick="addFloc()">Add Location</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000';
+        let currentTasks = [];
+        let currentFlocs = [];
+        let currentLocations = [];
+        let selectedTaskId = null;
+        let selectedFlocId = null;
+        let expandedTreeNodes = new Set();
+        let currentAttachments = [];
+        let currentUserData = null;
+
+        // Check authentication on load
+        async function checkAuth() {
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/me`, {
+                    credentials: 'include'
+                });
+                if (!response.ok) {
+                    window.location.href = `${API_BASE}/login.html`;
+                    return false;
+                }
+                currentUserData = await response.json();
+                document.getElementById('currentUser').textContent = currentUserData.username;
+                document.getElementById('currentRole').textContent = currentUserData.role;
+                return true;
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = `${API_BASE}/login.html`;
+                return false;
+            }
+        }
+
+        async function handleLogout() {
+            try {
+                await fetch(`${API_BASE}/api/auth/logout`, { 
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                window.location.href = `${API_BASE}/login.html`;
+            } catch (error) {
+                console.error('Logout error:', error);
+                window.location.href = `${API_BASE}/login.html`;
+            }
+        }
+
+        // Page Navigation
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            
+            if (pageId === 'funcloc') {
+                refreshFlocs();
+            } else if (pageId === 'dashboard') {
+                loadDashboard();
+            }
+        }
+
+        // Dashboard Functions
+        async function loadDashboard() {
+            try {
+                const [tasks, locations, flocs] = await Promise.all([
+                    fetch(`${API_BASE}/tasks`).then(r => r.json()),
+                    fetch(`${API_BASE}/locations`).then(r => r.json()),
+                    fetch(`${API_BASE}/funclocations`).then(r => r.json())
+                ]);
+
+                currentTasks = tasks;
+                currentFlocs = flocs;
+                currentLocations = locations;
+
+                buildFlocTreeNav();
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                document.getElementById('flocTreeNav').innerHTML = '<div class="empty-state">Failed to load data</div>';
+            }
+        }
+
+        function buildFlocTreeNav() {
+            const treeDiv = document.getElementById('flocTreeNav');
+            
+            if (currentFlocs.length === 0) {
+                treeDiv.innerHTML = '<div class="empty-state">No functional locations yet.</div>';
+                return;
+            }
+
+            // Build hierarchy
+            const byId = {};
+            currentFlocs.forEach(f => byId[f.id] = { ...f, children: [] });
+
+            const roots = [];
+            Object.values(byId).forEach(f => {
+                if (f.parent_id && byId[f.parent_id]) {
+                    byId[f.parent_id].children.push(f);
+                } else {
+                    roots.push(f);
+                }
+            });
+
+            // Get all descendant tasks count recursively
+            function getDescendantTaskCount(flocId) {
+                let count = currentTasks.filter(t => t.func_loc_id === flocId).length;
+                const children = currentFlocs.filter(f => f.parent_id === flocId);
+                children.forEach(child => {
+                    count += getDescendantTaskCount(child.id);
+                });
+                return count;
+            }
+
+            function renderNode(node, level = 0) {
+                const indent = level > 0 ? 'tree-node-child' : '';
+                const totalTasks = getDescendantTaskCount(node.id);
+                const hasChildren = node.children.length > 0;
+                const isExpanded = expandedTreeNodes.has(node.id);
+                
+                let html = `
+                    <div class="${indent} tree-node" data-id="${node.id}">
+                        ${hasChildren ? `<span onclick="toggleTreeNode(${node.id}); event.stopPropagation();" style="cursor: pointer; margin-right: 5px; display: inline-block; width: 12px;">${isExpanded ? '▼' : '▶'}</span>` : '<span style="margin-right: 17px;"></span>'}
+                        <span onclick="selectFlocFromTree(${node.id})">${node.name} <span style="color: #9ca3af; font-size: 12px;">(${totalTasks})</span></span>
+                    </div>`;
+                
+                if (hasChildren && isExpanded) {
+                    node.children.sort((a, b) => a.name.localeCompare(b.name)).forEach(child => {
+                        html += renderNode(child, level + 1);
+                    });
+                }
+                return html;
+            }
+
+            treeDiv.innerHTML = roots.sort((a, b) => a.name.localeCompare(b.name))
+                .map(r => renderNode(r)).join('');
+        }
+
+        function toggleTreeNode(flocId) {
+            if (expandedTreeNodes.has(flocId)) {
+                expandedTreeNodes.delete(flocId);
+            } else {
+                expandedTreeNodes.add(flocId);
+            }
+            buildFlocTreeNav();
+        }
+
+        function selectFlocFromTree(id) {
+            document.querySelectorAll('#flocTreeNav .tree-node').forEach(n => {
+                const nodeId = n.getAttribute('data-id');
+                if (nodeId == id) {
+                    n.classList.add('selected');
+                } else {
+                    n.classList.remove('selected');
+                }
+            });
+
+            const floc = currentFlocs.find(f => f.id === id);
+            if (!floc) return;
+
+            buildFlocDetailView(floc);
+        }
+
+        function buildFlocDetailView(floc) {
+            const viewDiv = document.getElementById('flocTaskView');
+            
+            // Get all children recursively
+            function getAllChildren(flocId) {
+                const children = [];
+                currentFlocs.forEach(f => {
+                    if (f.parent_id === flocId) {
+                        children.push(f);
+                        children.push(...getAllChildren(f.id));
+                    }
+                });
+                return children;
+            }
+            
+            const children = getAllChildren(floc.id);
+            
+            // Get all descendant IDs (including the current floc)
+            const descendantIds = [floc.id, ...children.map(c => c.id)];
+            
+            // Get tasks for this location AND all its descendants
+            const allTasks = currentTasks.filter(t => descendantIds.includes(t.func_loc_id));
+            const directTasks = currentTasks.filter(t => t.func_loc_id === floc.id);
+            const childTasks = allTasks.filter(t => t.func_loc_id !== floc.id);
+
+            let html = `
+                <div style="margin-bottom: 20px;">
+                    <h3 style="font-size: 22px; color: #1f2937; margin-bottom: 8px;">${floc.name}</h3>
+                    ${floc.description ? `<p style="color: #6b7280; margin-bottom: 15px;">${floc.description}</p>` : ''}
+                    ${floc.parent_id ? `<p style="color: #9ca3af; font-size: 13px;">Parent: ${currentFlocs.find(f => f.id === floc.parent_id)?.name || 'Unknown'}</p>` : ''}
+                    <p style="color: #667eea; font-size: 14px; font-weight: 600; margin-top: 10px;">
+                        Total Tasks: ${allTasks.length} ${allTasks.length !== directTasks.length ? `(${directTasks.length} direct, ${childTasks.length} from children)` : ''}
+                    </p>
+                </div>
+            `;
+
+            if (children.length > 0) {
+                html += `
+                    <div style="margin-bottom: 25px; padding: 15px; background: #f9fafb; border-radius: 8px;">
+                        <h4 style="font-size: 14px; color: #6b7280; margin-bottom: 10px;">CHILD LOCATIONS (${children.length})</h4>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            ${children.map(c => {
+                                const childTaskCount = currentTasks.filter(t => t.func_loc_id === c.id).length;
+                                return `
+                                    <span onclick="selectFlocFromTree(${c.id})" style="cursor: pointer; padding: 6px 12px; background: white; border-radius: 6px; font-size: 13px; border: 1px solid #e5e7eb; transition: all 0.2s;"
+                                    onmouseover="this.style.background='#ddd6fe'; this.style.borderColor='#c4b5fd';"
+                                    onmouseout="this.style.background='white'; this.style.borderColor='#e5e7eb';">
+                                        ${c.name} <span style="color: #9ca3af;">(${childTaskCount})</span>
+                                    </span>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (directTasks.length > 0) {
+                html += `
+                    <h4 style="font-size: 16px; color: #374151; margin-bottom: 15px;">Direct Tasks (${directTasks.length})</h4>
+                    <div class="task-list">
+                        ${directTasks.map(t => `
+                            <div class="task-item" onclick="editTaskFromDashboard(${t.id})">
+                                <div class="task-item-left">
+                                    <div class="task-name">${t.name}</div>
+                                    <div class="task-details">
+                                        📍 ${t.location}
+                                        ${t.part_name ? ` | 🔧 ${t.part_name}` : ''}
+                                        ${t.vendor ? ` | 🏪 ${t.vendor}` : ''}
+                                        ${t.attachments && t.attachments.length > 0 ? ` | 📎 ${t.attachments.length} file${t.attachments.length > 1 ? 's' : ''}` : ''}
+                                    </div>
+                                </div>
+                                <div class="task-item-right">
+                                    <div class="task-date">${t.next_run.split('T')[0]}</div>
+                                    <div class="task-freq">Every ${t.frequency_days} days</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            if (childTasks.length > 0) {
+                // Group child tasks by their functional location
+                const tasksByFloc = {};
+                childTasks.forEach(t => {
+                    if (!tasksByFloc[t.func_loc_id]) {
+                        tasksByFloc[t.func_loc_id] = [];
+                    }
+                    tasksByFloc[t.func_loc_id].push(t);
+                });
+
+                html += `
+                    <h4 style="font-size: 16px; color: #374151; margin-top: 25px; margin-bottom: 15px;">Tasks from Child Locations (${childTasks.length})</h4>
+                `;
+
+                Object.keys(tasksByFloc).forEach(flocId => {
+                    const childFloc = currentFlocs.find(f => f.id === parseInt(flocId));
+                    const tasks = tasksByFloc[flocId];
+                    
+                    html += `
+                        <div style="margin-bottom: 20px;">
+                            <h5 style="font-size: 14px; color: #6b7280; margin-bottom: 10px; padding-left: 10px; border-left: 3px solid #667eea;">
+                                ${childFloc ? childFloc.name : 'Unknown Location'}
+                            </h5>
+                            <div class="task-list">
+                                ${tasks.map(t => `
+                                    <div class="task-item" onclick="editTaskFromDashboard(${t.id})" style="border-left-color: #a78bfa;">
+                                        <div class="task-item-left">
+                                            <div class="task-name">${t.name}</div>
+                                            <div class="task-details">
+                                                📍 ${t.location}
+                                                ${t.part_name ? ` | 🔧 ${t.part_name}` : ''}
+                                                ${t.vendor ? ` | 🏪 ${t.vendor}` : ''}
+                                                ${t.attachments && t.attachments.length > 0 ? ` | 📎 ${t.attachments.length} file${t.attachments.length > 1 ? 's' : ''}` : ''}
+                                            </div>
+                                        </div>
+                                        <div class="task-item-right">
+                                            <div class="task-date">${t.next_run.split('T')[0]}</div>
+                                            <div class="task-freq">Every ${t.frequency_days} days</div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            if (allTasks.length === 0) {
+                html += '<div class="no-tasks">No tasks assigned to this location or its children</div>';
+            }
+
+            viewDiv.innerHTML = html;
+        }
+
+        function editTaskFromDashboard(taskId) {
+            const task = currentTasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            selectedTaskId = task.id;
+            currentAttachments = task.attachments || [];
+
+            // Populate form
+            document.getElementById('taskName').value = task.name;
+            document.getElementById('taskFreq').value = task.frequency_days;
+            document.getElementById('taskDate').value = task.next_run.split('T')[0];
+            
+            // Update dropdowns
+            const locSelect = document.getElementById('taskLocation');
+            locSelect.innerHTML = '<option value="">Select location...</option>' +
+                currentLocations.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+            
+            const locOpt = Array.from(locSelect.options).find(opt => opt.text === task.location);
+            if (locOpt) locSelect.value = locOpt.value;
+
+            const flocSelect = document.getElementById('taskFuncLoc');
+            flocSelect.innerHTML = '<option value="">Select functional location...</option>' +
+                currentFlocs.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+            
+            if (task.func_loc_id) {
+                flocSelect.value = task.func_loc_id;
+            }
+
+            document.getElementById('taskPart').value = task.part_name || '';
+            document.getElementById('taskLead').value = task.lead_time_days || '';
+            document.getElementById('taskVendor').value = task.vendor || '';
+            document.getElementById('taskVendorPN').value = task.vendor_part_number || '';
+
+            // Display attachments
+            displayAttachments();
+
+            // Show tasks page
+            showPage('tasks');
+        }
+
+        function displayAttachments() {
+            const listDiv = document.getElementById('attachmentsList');
+            
+            if (currentAttachments.length === 0) {
+                listDiv.innerHTML = '<p style="color: #9ca3af; font-size: 13px; font-style: italic;">No attachments yet</p>';
+                return;
+            }
+
+            const getFileIcon = (fileType) => {
+                if (['pdf'].includes(fileType)) return '📄';
+                if (['doc', 'docx'].includes(fileType)) return '📝';
+                if (['xls', 'xlsx'].includes(fileType)) return '📊';
+                if (['png', 'jpg', 'jpeg', 'gif'].includes(fileType)) return '🖼️';
+                return '📎';
+            };
+
+            listDiv.innerHTML = currentAttachments.map(att => `
+                <div class="attachment-item">
+                    <div class="attachment-name">
+                        <span class="attachment-icon">${getFileIcon(att.file_type)}</span>
+                        <span>${att.original_filename}</span>
+                    </div>
+                    <div class="attachment-actions">
+                        <button class="btn btn-icon" onclick="downloadAttachment(${att.id})">⬇ Download</button>
+                        <button class="btn btn-icon" onclick="deleteAttachment(${att.id})" style="color: #ef4444; border-color: #fecaca;">🗑 Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert('Please select a file first');
+                return;
+            }
+
+            if (!selectedTaskId) {
+                alert('No task selected');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`${API_BASE}/tasks/${selectedTaskId}/attachments`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Upload failed');
+                }
+
+                const attachment = await response.json();
+                currentAttachments.push(attachment);
+                displayAttachments();
+                fileInput.value = '';
+                alert('File uploaded successfully!');
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                alert('Failed to upload file');
+            }
+        }
+
+        async function downloadAttachment(attachmentId) {
+            window.open(`${API_BASE}/attachments/${attachmentId}/download`, '_blank');
+        }
+
+        async function deleteAttachment(attachmentId) {
+            if (!confirm('Delete this attachment?')) return;
+
+            try {
+                await fetch(`${API_BASE}/attachments/${attachmentId}`, { method: 'DELETE' });
+                currentAttachments = currentAttachments.filter(a => a.id !== attachmentId);
+                displayAttachments();
+                alert('Attachment deleted');
+            } catch (error) {
+                console.error('Error deleting attachment:', error);
+                alert('Failed to delete attachment');
+            }
+        }
+
+        async function updateTask() {
+            if (!selectedTaskId) return;
+
+            const name = document.getElementById('taskName').value.trim();
+            const freq = parseInt(document.getElementById('taskFreq').value);
+            const date = document.getElementById('taskDate').value;
+            const locId = document.getElementById('taskLocation').value;
+            const flocId = document.getElementById('taskFuncLoc').value || null;
+
+            if (!name || !freq || !date || !locId) {
+                alert('Please fill in name, frequency, date, and location');
+                return;
+            }
+
+            try {
+                await fetch(`${API_BASE}/tasks/${selectedTaskId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        frequency_days: freq,
+                        next_run: date,
+                        location_id: parseInt(locId),
+                        func_loc_id: flocId ? parseInt(flocId) : null,
+                        part_name: document.getElementById('taskPart').value || '',
+                        vendor: document.getElementById('taskVendor').value || '',
+                        vendor_part_number: document.getElementById('taskVendorPN').value || '',
+                        lead_time_days: parseInt(document.getElementById('taskLead').value) || 0
+                    })
+                });
+
+                await loadDashboard();
+                alert('Task updated successfully!');
+                showPage('dashboard');
+            } catch (error) {
+                console.error('Error updating task:', error);
+                alert('Failed to update task');
+            }
+        }
+
+        async function deleteTask() {
+            if (!selectedTaskId || !confirm('Delete this task?')) return;
+
+            try {
+                await fetch(`${API_BASE}/tasks/${selectedTaskId}`, { method: 'DELETE' });
+                await loadDashboard();
+                alert('Task deleted successfully!');
+                showPage('dashboard');
+            } catch (error) {
+                console.error('Error deleting task:', error);
+                alert('Failed to delete task');
+            }
+        }
+
+        // Functional Locations Functions
+        async function refreshFlocs() {
+            try {
+                const flocs = await fetch(`${API_BASE}/funclocations`).then(r => r.json());
+                currentFlocs = flocs;
+
+                buildFlocTree(flocs);
+                updateFlocDropdowns();
+            } catch (error) {
+                console.error('Error refreshing functional locations:', error);
+            }
+        }
+
+        function buildFlocTree(flocs) {
+            const byId = {};
+            flocs.forEach(f => byId[f.id] = { ...f, children: [] });
+
+            const roots = [];
+            Object.values(byId).forEach(f => {
+                if (f.parent_id && byId[f.parent_id]) {
+                    byId[f.parent_id].children.push(f);
+                } else {
+                    roots.push(f);
+                }
+            });
+
+            const treeDiv = document.getElementById('flocTree');
+            if (roots.length === 0) {
+                treeDiv.innerHTML = '<div class="empty-state">No functional locations yet. Add one below!</div>';
+                return;
+            }
+
+            function renderNode(node, level = 0) {
+                const indent = level > 0 ? 'tree-node-child' : '';
+                let html = `<div class="${indent} tree-node" onclick="selectFloc(${node.id})" data-id="${node.id}">${node.name}</div>`;
+                node.children.sort((a, b) => a.name.localeCompare(b.name)).forEach(child => {
+                    html += renderNode(child, level + 1);
+                });
+                return html;
+            }
+
+            treeDiv.innerHTML = roots.sort((a, b) => a.name.localeCompare(b.name))
+                .map(r => renderNode(r)).join('');
+        }
+
+        function selectFloc(id) {
+            document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('selected'));
+            document.querySelector(`.tree-node[data-id="${id}"]`).classList.add('selected');
+
+            selectedFlocId = id;
+            const floc = currentFlocs.find(f => f.id === id);
+            if (!floc) return;
+
+            document.getElementById('flocEditSection').innerHTML = `
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="editFlocName" value="${floc.name}">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="editFlocDesc">${floc.description || ''}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Parent Location</label>
+                    <select id="editFlocParent">
+                        <option value="">(None)</option>
+                        ${currentFlocs.filter(f => f.id !== id).map(f => 
+                            `<option value="${f.id}" ${f.id === floc.parent_id ? 'selected' : ''}>${f.name}</option>`
+                        ).join('')}
+                    </select>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="saveFloc()">Save Changes</button>
+                    <button class="btn btn-danger" onclick="deleteFloc()">Delete</button>
+                </div>
+            `;
+        }
+
+        function updateFlocDropdowns() {
+            const parentSelect = document.getElementById('newFlocParent');
+            parentSelect.innerHTML = '<option value="">(None)</option>' +
+                currentFlocs.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+        }
+
+        async function saveFloc() {
+            if (!selectedFlocId) return;
+
+            const name = document.getElementById('editFlocName').value.trim();
+            const desc = document.getElementById('editFlocDesc').value || null;
+            const parentId = document.getElementById('editFlocParent').value || null;
+
+            if (!name) {
+                alert('Name cannot be empty');
+                return;
+            }
+
+            try {
+                await fetch(`${API_BASE}/funclocations/${selectedFlocId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        description: desc,
+                        parent_id: parentId ? parseInt(parentId) : null
+                    })
+                });
+
+                await refreshFlocs();
+                await loadDashboard();
+                alert('Saved successfully!');
+            } catch (error) {
+                console.error('Error saving functional location:', error);
+                alert('Failed to save: ' + error.message);
+            }
+        }
+
+        async function deleteFloc() {
+            if (!selectedFlocId || !confirm('Delete this functional location? You must first reparent/delete any children and move/delete any tasks.')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/funclocations/${selectedFlocId}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const data = await response.json();
+                    alert('Failed to delete: ' + data.message);
+                    return;
+                }
+
+                selectedFlocId = null;
+                await refreshFlocs();
+                await loadDashboard();
+                document.getElementById('flocEditSection').innerHTML = '<p style="color: #9ca3af; text-align: center; padding: 20px;">Select a functional location from the tree</p>';
+            } catch (error) {
+                console.error('Error deleting functional location:', error);
+                alert('Failed to delete');
+            }
+        }
+
+        async function addFloc() {
+            const name = document.getElementById('newFlocName').value.trim();
+            const desc = document.getElementById('newFlocDesc').value || null;
+            const parentId = document.getElementById('newFlocParent').value || null;
+
+            if (!name) {
+                alert('Please enter a name');
+                return;
+            }
+
+            try {
+                await fetch(`${API_BASE}/funclocations`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        description: desc,
+                        parent_id: parentId ? parseInt(parentId) : null
+                    })
+                });
+
+                document.getElementById('newFlocName').value = '';
+                document.getElementById('newFlocDesc').value = '';
+                document.getElementById('newFlocParent').value = '';
+                await refreshFlocs();
+                await loadDashboard();
+            } catch (error) {
+                console.error('Error adding functional location:', error);
+                alert('Failed to add functional location');
+            }
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', async () => {
+            const isAuthenticated = await checkAuth();
+            if (isAuthenticated) {
+                loadDashboard();
+            }
+        });
+    </script>
+</body>
+</html>
