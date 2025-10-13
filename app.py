@@ -7,25 +7,21 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import os
 
-# Flask app setup
 app = Flask(__name__)
 
-# Use DATABASE_URL from Render (or fallback to local)
 database_url = os.getenv('DATABASE_URL', 'postgresql://yeems:supersecure@localhost:5432/maintenance_db')
-# Render uses postgres:// but SQLAlchemy needs postgresql://
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
-# Create uploads directory if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt', 'png', 'jpg', 'jpeg', 'gif', 'xlsx', 'xls'}
@@ -36,7 +32,6 @@ def allowed_file(filename):
 db = SQLAlchemy(app)
 scheduler = BackgroundScheduler()
 
-# ---------------- Models ----------------
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -61,12 +56,12 @@ class Location(db.Model):
 
 class FunctionalLocation(db.Model):
     __tablename__ = 'functional_locations'
-    id          = db.Column(db.Integer, primary_key=True)
-    name        = db.Column(db.String(100), nullable=False, unique=True)
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.Text, nullable=True)
-    parent_id   = db.Column(db.Integer, db.ForeignKey('functional_locations.id'), nullable=True)
-    parent      = db.relationship('FunctionalLocation', remote_side=[id], backref='children')
-    tasks       = db.relationship('MaintenanceTask', backref='func_loc', lazy=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('functional_locations.id'), nullable=True)
+    parent = db.relationship('FunctionalLocation', remote_side=[id], backref='children')
+    tasks = db.relationship('MaintenanceTask', backref='func_loc', lazy=True)
 
 class MaintenanceTask(db.Model):
     __tablename__ = 'maintenance_tasks'
@@ -100,7 +95,6 @@ class TaskAttachment(db.Model):
     file_type = db.Column(db.String(50))
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# ------------- Auth Decorators -------------
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -120,7 +114,6 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# ------------- Helpers -------------
 def is_descendant(node_id, possible_ancestor_id):
     if not node_id or not possible_ancestor_id:
         return False
@@ -136,12 +129,12 @@ def is_descendant(node_id, possible_ancestor_id):
 def run_maintenance_task(task_id):
     with app.app_context():
         task = MaintenanceTask.query.get(task_id)
-        print(f"Task due: '{task.name}' at location '{task.location.name}'")
-        task.next_run += timedelta(days=task.frequency_days)
-        db.session.commit()
-        task.schedule_notifications()
+        if task:
+            print(f"Task due: '{task.name}' at location '{task.location.name}'")
+            task.next_run += timedelta(days=task.frequency_days)
+            db.session.commit()
+            task.schedule_notifications()
 
-# ---------------- Auth Routes ----------------
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -158,22 +151,13 @@ def register():
     user_count = User.query.count()
     role = 'admin' if user_count == 0 else data.get('role', 'technician')
     
-    user = User(
-        username=data['username'],
-        email=data['email'],
-        role=role
-    )
+    user = User(username=data['username'], email=data['email'], role=role)
     user.set_password(data['password'])
     
     db.session.add(user)
     db.session.commit()
     
-    return jsonify({
-        'id': user.id,
-        'username': user.username,
-        'email': user.email,
-        'role': user.role
-    }), 201
+    return jsonify({'id': user.id, 'username': user.username, 'email': user.email, 'role': user.role}), 201
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
@@ -194,12 +178,7 @@ def login():
     session['username'] = user.username
     session['role'] = user.role
     
-    return jsonify({
-        'id': user.id,
-        'username': user.username,
-        'email': user.email,
-        'role': user.role
-    }), 200
+    return jsonify({'id': user.id, 'username': user.username, 'email': user.email, 'role': user.role}), 200
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
@@ -210,12 +189,7 @@ def logout():
 @login_required
 def get_current_user():
     user = User.query.get(session['user_id'])
-    return jsonify({
-        'id': user.id,
-        'username': user.username,
-        'email': user.email,
-        'role': user.role
-    }), 200
+    return jsonify({'id': user.id, 'username': user.username, 'email': user.email, 'role': user.role}), 200
 
 @app.route('/api/users', methods=['GET'])
 @admin_required
@@ -244,7 +218,6 @@ def update_user(user_id):
     db.session.commit()
     return jsonify({'message': 'User updated'}), 200
 
-# ---------------- Routes ----------------
 @app.route('/')
 def index():
     if 'user_id' not in session:
@@ -255,18 +228,19 @@ def index():
 def login_page():
     return render_template('login.html')
 
-@app.route('/locations', methods=['GET','POST'])
+@app.route('/locations', methods=['GET', 'POST'])
 @login_required
 def handle_locations():
     if request.method == 'POST':
         data = request.get_json() or request.form
         loc = Location(name=data.get('name'))
-        db.session.add(loc); db.session.commit()
+        db.session.add(loc)
+        db.session.commit()
         return jsonify({'id': loc.id, 'name': loc.name}), 201
     locs = Location.query.order_by(Location.name).all()
     return jsonify([{'id': l.id, 'name': l.name} for l in locs])
 
-@app.route('/tasks', methods=['GET','POST'])
+@app.route('/tasks', methods=['GET', 'POST'])
 @login_required
 def handle_tasks():
     if request.method == 'POST':
@@ -282,7 +256,8 @@ def handle_tasks():
             func_loc_id=int(data.get('func_loc_id')) if data.get('func_loc_id') else None,
             lead_time_days=int(data.get('lead_time_days', 0))
         )
-        db.session.add(task); db.session.commit()
+        db.session.add(task)
+        db.session.commit()
         task.schedule_notifications()
         if request.form:
             return redirect(url_for('index'))
@@ -334,10 +309,10 @@ def delete_task(task_id):
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], attachment.filename)
         if os.path.exists(file_path):
             os.remove(file_path)
-    db.session.delete(task); db.session.commit()
+    db.session.delete(task)
+    db.session.commit()
     return '', 204
 
-# ---------- File Upload Routes ----------
 @app.route('/tasks/<int:task_id>/attachments', methods=['POST'])
 @login_required
 def upload_attachment(task_id):
@@ -398,8 +373,7 @@ def download_attachment(attachment_id):
         download_name=attachment.original_filename
     )
 
-# ---------- Functional Locations ----------
-@app.route('/funclocations', methods=['GET','POST'])
+@app.route('/funclocations', methods=['GET', 'POST'])
 @login_required
 def handle_funclocs():
     if request.method == 'POST':
@@ -409,16 +383,14 @@ def handle_funclocs():
             description=data.get('description'),
             parent_id=data.get('parent_id')
         )
-        db.session.add(fl); db.session.commit()
+        db.session.add(fl)
+        db.session.commit()
         return jsonify({'id': fl.id, 'name': fl.name, 'description': fl.description, 'parent_id': fl.parent_id}), 201
 
     fls = FunctionalLocation.query.order_by(FunctionalLocation.name).all()
-    return jsonify([
-        {'id': f.id, 'name': f.name, 'description': f.description, 'parent_id': f.parent_id}
-        for f in fls
-    ])
+    return jsonify([{'id': f.id, 'name': f.name, 'description': f.description, 'parent_id': f.parent_id} for f in fls])
 
-@app.route('/funclocations/<int:fl_id>', methods=['PUT','PATCH'])
+@app.route('/funclocations/<int:fl_id>', methods=['PUT', 'PATCH'])
 @login_required
 def update_funcloc(fl_id):
     data = request.get_json() or abort(400, "JSON body required")
@@ -452,14 +424,13 @@ def delete_funcloc(fl_id):
         return jsonify({'error': 'has_children', 'message': 'Delete or reparent children first.'}), 400
     if fl.tasks and len(fl.tasks) > 0:
         return jsonify({'error': 'has_tasks', 'message': 'Move or delete tasks referencing this functional location first.'}), 400
-    db.session.delete(fl); db.session.commit()
+    db.session.delete(fl)
+    db.session.commit()
     return '', 204
 
-# ---------------- Initialize ----------------
 with app.app_context():
     db.create_all()
     
-    # Create default admin if no users exist
     if User.query.count() == 0:
         admin = User(username='admin', email='admin@example.com', role='admin')
         admin.set_password('admin123')
@@ -467,7 +438,6 @@ with app.app_context():
         db.session.commit()
         print("Created default admin user: admin / admin123")
     
-    # Schedule existing tasks
     for task in MaintenanceTask.query.all():
         task.schedule_notifications()
 
