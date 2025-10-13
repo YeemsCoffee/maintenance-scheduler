@@ -15,6 +15,7 @@
                     <span style="color: #6b7280; font-size: 14px;">
                         👤 <span id="currentUser"></span> (<span id="currentRole"></span>)
                     </span>
+                    <button class="btn btn-secondary btn-small" onclick="showPage('calendar')">📅 Calendar</button>
                     <button class="btn btn-secondary btn-small" onclick="showPage('users')" id="manageUsersBtn" style="display: none;">Manage Users</button>
                     <button class="btn btn-secondary btn-small" onclick="handleLogout()">Logout</button>
                 </div>
@@ -25,7 +26,10 @@
         <div id="dashboard" class="page active">
             <div class="grid">
                 <div class="card">
-                    <h2>🏗️ Functional Location Structure</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin: 0;">🏗️ Functional Location Structure</h2>
+                        <button class="btn btn-primary btn-small" onclick="showAddLocationModal()">+ Add Location</button>
+                    </div>
                     <div class="tree" id="flocTreeNav">
                         <div class="empty-state">Loading...</div>
                     </div>
@@ -37,6 +41,22 @@
                         <div class="empty-state">Select a functional location from the tree</div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Calendar Page -->
+        <div id="calendar" class="page">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">📅 Maintenance Calendar</h2>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button class="btn btn-secondary btn-small" onclick="changeMonth(-1)">← Prev</button>
+                        <span id="calendarMonth" style="font-weight: 600; min-width: 150px; text-align: center;"></span>
+                        <button class="btn btn-secondary btn-small" onclick="changeMonth(1)">Next →</button>
+                        <button class="btn btn-secondary btn-small" onclick="showPage('dashboard')">← Back</button>
+                    </div>
+                </div>
+                <div id="calendarView"></div>
             </div>
         </div>
 
@@ -178,9 +198,35 @@
                 </div>
             </div>
         </div>
+
+        <!-- Add Location Modal -->
+        <div id="addLocationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%;">
+                <h2 style="margin-top: 0;">➕ Add Functional Location</h2>
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="modalFlocName" placeholder="e.g., Building A">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="modalFlocDesc" placeholder="Optional description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Parent Location (optional)</label>
+                    <select id="modalFlocParent">
+                        <option value="">(None)</option>
+                    </select>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="addLocationFromModal()">Add Location</button>
+                    <button class="btn btn-secondary" onclick="closeAddLocationModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
+        const API_BASE = window.location.origin; // Uses current domain instead of localhost
         let currentTasks = [];
         let currentFlocs = [];
         let currentLocations = [];
@@ -189,15 +235,16 @@
         let expandedTreeNodes = new Set();
         let currentAttachments = [];
         let currentUserData = null;
+        let currentCalendarDate = new Date();
 
         // Check authentication on load
         async function checkAuth() {
             try {
-                const response = await fetch(`/api/auth/me`, {
+                const response = await fetch(`${API_BASE}/api/auth/me`, {
                     credentials: 'include'
                 });
                 if (!response.ok) {
-                    window.location.href = `/login.html`;
+                    window.location.href = `${API_BASE}/login.html`;
                     return false;
                 }
                 currentUserData = await response.json();
@@ -212,21 +259,21 @@
                 return true;
             } catch (error) {
                 console.error('Auth check failed:', error);
-                window.location.href = `/login.html`;
+                window.location.href = `${API_BASE}/login.html`;
                 return false;
             }
         }
 
         async function handleLogout() {
             try {
-                await fetch(`/api/auth/logout`, { 
+                await fetch(`${API_BASE}/api/auth/logout`, { 
                     method: 'POST',
                     credentials: 'include'
                 });
-                window.location.href = `/login.html`;
+                window.location.href = `${API_BASE}/login.html`;
             } catch (error) {
                 console.error('Logout error:', error);
-                window.location.href = `/login.html`;
+                window.location.href = `${API_BASE}/login.html`;
             }
         }
 
@@ -248,9 +295,9 @@
         async function loadDashboard() {
             try {
                 const [tasks, locations, flocs] = await Promise.all([
-                    fetch(`/tasks`).then(r => r.json()),
-                    fetch(`/locations`).then(r => r.json()),
-                    fetch(`/funclocations`).then(r => r.json())
+                    fetch(`${API_BASE}/tasks`).then(r => r.json()),
+                    fetch(`${API_BASE}/locations`).then(r => r.json()),
+                    fetch(`${API_BASE}/funclocations`).then(r => r.json())
                 ]);
 
                 currentTasks = tasks;
@@ -567,7 +614,7 @@
             formData.append('file', file);
 
             try {
-                const response = await fetch(`/tasks/${selectedTaskId}/attachments`, {
+                const response = await fetch(`${API_BASE}/tasks/${selectedTaskId}/attachments`, {
                     method: 'POST',
                     body: formData
                 });
@@ -588,14 +635,14 @@
         }
 
         async function downloadAttachment(attachmentId) {
-            window.open(`/attachments/${attachmentId}/download`, '_blank');
+            window.open(`${API_BASE}/attachments/${attachmentId}/download`, '_blank');
         }
 
         async function deleteAttachment(attachmentId) {
             if (!confirm('Delete this attachment?')) return;
 
             try {
-                await fetch(`/attachments/${attachmentId}`, { method: 'DELETE' });
+                await fetch(`${API_BASE}/attachments/${attachmentId}`, { method: 'DELETE' });
                 currentAttachments = currentAttachments.filter(a => a.id !== attachmentId);
                 displayAttachments();
                 alert('Attachment deleted');
@@ -620,7 +667,7 @@
             }
 
             try {
-                await fetch(`/tasks/${selectedTaskId}`, {
+                await fetch(`${API_BASE}/tasks/${selectedTaskId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -649,7 +696,7 @@
             if (!selectedTaskId || !confirm('Delete this task?')) return;
 
             try {
-                await fetch(`/tasks/${selectedTaskId}`, { method: 'DELETE' });
+                await fetch(`${API_BASE}/tasks/${selectedTaskId}`, { method: 'DELETE' });
                 await loadDashboard();
                 alert('Task deleted successfully!');
                 showPage('dashboard');
@@ -662,7 +709,7 @@
         // Functional Locations Functions
         async function refreshFlocs() {
             try {
-                const flocs = await fetch(`/funclocations`).then(r => r.json());
+                const flocs = await fetch(`${API_BASE}/funclocations`).then(r => r.json());
                 currentFlocs = flocs;
 
                 buildFlocTree(flocs);
@@ -756,7 +803,7 @@
             }
 
             try {
-                await fetch(`/funclocations/${selectedFlocId}`, {
+                await fetch(`${API_BASE}/funclocations/${selectedFlocId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -779,7 +826,7 @@
             if (!selectedFlocId || !confirm('Delete this functional location? You must first reparent/delete any children and move/delete any tasks.')) return;
 
             try {
-                const response = await fetch(`/funclocations/${selectedFlocId}`, { method: 'DELETE' });
+                const response = await fetch(`${API_BASE}/funclocations/${selectedFlocId}`, { method: 'DELETE' });
                 if (!response.ok) {
                     const data = await response.json();
                     alert('Failed to delete: ' + data.message);
@@ -807,7 +854,7 @@
             }
 
             try {
-                await fetch(`/funclocations`, {
+                await fetch(`${API_BASE}/funclocations`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -837,7 +884,7 @@
             }
 
             try {
-                const response = await fetch(`/api/users`, {
+                const response = await fetch(`${API_BASE}/api/users`, {
                     credentials: 'include'
                 });
                 const users = await response.json();
@@ -886,7 +933,7 @@
             }
 
             try {
-                await fetch(`/api/users/${userId}`, {
+                await fetch(`${API_BASE}/api/users/${userId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
@@ -908,7 +955,7 @@
             }
 
             try {
-                await fetch(`/api/users/${userId}`, {
+                await fetch(`${API_BASE}/api/users/${userId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
@@ -919,6 +966,56 @@
             } catch (error) {
                 console.error('Error updating user status:', error);
                 alert('Failed to update user status');
+            }
+        }
+
+        // Add Location Modal Functions
+        function showAddLocationModal() {
+            // Populate parent dropdown
+            const parentSelect = document.getElementById('modalFlocParent');
+            parentSelect.innerHTML = '<option value="">(None)</option>' +
+                currentFlocs.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+            
+            // Clear form
+            document.getElementById('modalFlocName').value = '';
+            document.getElementById('modalFlocDesc').value = '';
+            
+            // Show modal
+            document.getElementById('addLocationModal').style.display = 'flex';
+        }
+
+        function closeAddLocationModal() {
+            document.getElementById('addLocationModal').style.display = 'none';
+        }
+
+        async function addLocationFromModal() {
+            const name = document.getElementById('modalFlocName').value.trim();
+            const desc = document.getElementById('modalFlocDesc').value || null;
+            const parentId = document.getElementById('modalFlocParent').value || null;
+
+            if (!name) {
+                alert('Please enter a name');
+                return;
+            }
+
+            try {
+                await fetch('/funclocations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        name,
+                        description: desc,
+                        parent_id: parentId ? parseInt(parentId) : null
+                    })
+                });
+
+                closeAddLocationModal();
+                await loadDashboard();
+                alert('Location added successfully!');
+            } catch (error) {
+                console.error('Error adding functional location:', error);
+                alert('Failed to add functional location');
             }
         }
 
