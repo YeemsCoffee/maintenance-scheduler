@@ -200,26 +200,61 @@
         </div>
 
         <!-- Add Location Modal -->
-        <div id="addLocationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%;">
-                <h2 style="margin-top: 0;">➕ Add Functional Location</h2>
-                <div class="form-group">
-                    <label>Name</label>
-                    <input type="text" id="modalFlocName" placeholder="e.g., Building A">
+        <div id="addLocationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+            <div style="background: white; border-radius: 16px; padding: 0; max-width: 600px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden;">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; color: white;">
+                    <h2 style="margin: 0; font-size: 24px;">➕ Create Functional Location</h2>
+                    <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 14px;">Add a new location to organize your maintenance tasks</p>
                 </div>
-                <div class="form-group">
-                    <label>Description</label>
-                    <textarea id="modalFlocDesc" placeholder="Optional description"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Parent Location (optional)</label>
-                    <select id="modalFlocParent">
-                        <option value="">(None)</option>
-                    </select>
-                </div>
-                <div class="btn-group">
-                    <button class="btn btn-primary" onclick="addLocationFromModal()">Add Location</button>
-                    <button class="btn btn-secondary" onclick="closeAddLocationModal()">Cancel</button>
+                
+                <div style="padding: 30px;">
+                    <div class="form-group">
+                        <label style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; font-weight: 600;">Location Name *</label>
+                        <input type="text" id="modalFlocName" placeholder="e.g., Building A, Floor 2, Production Line 1" style="font-size: 16px; padding: 14px;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; font-weight: 600;">Description</label>
+                        <textarea id="modalFlocDesc" placeholder="Optional: Add details about this location..." style="min-height: 80px; font-size: 14px;"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; font-weight: 600;">Parent Location</label>
+                        <div style="margin-bottom: 8px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px; background: #f9fafb; border-radius: 8px; border: 2px solid #e5e7eb; transition: all 0.2s;">
+                                <input type="radio" name="parentType" value="none" checked onclick="toggleParentSelect(false)" style="cursor: pointer;">
+                                <div>
+                                    <div style="font-weight: 600; color: #374151; font-size: 14px;">🏠 Top Level Location</div>
+                                    <div style="font-size: 12px; color: #6b7280;">This will be a root location (no parent)</div>
+                                </div>
+                            </label>
+                        </div>
+                        <div style="margin-bottom: 8px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px; background: #f9fafb; border-radius: 8px; border: 2px solid #e5e7eb; transition: all 0.2s;">
+                                <input type="radio" name="parentType" value="child" onclick="toggleParentSelect(true)" style="cursor: pointer;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; color: #374151; font-size: 14px;">📁 Sub-Location</div>
+                                    <div style="font-size: 12px; color: #6b7280;">Place this under an existing location</div>
+                                </div>
+                            </label>
+                        </div>
+                        <div id="parentSelectContainer" style="display: none; margin-top: 12px; padding: 12px; background: #f0f9ff; border: 2px solid #bae6fd; border-radius: 8px;">
+                            <label style="font-size: 13px; color: #0369a1; font-weight: 600; margin-bottom: 8px; display: block;">Select Parent:</label>
+                            <select id="modalFlocParent" style="width: 100%; padding: 12px; border: 2px solid #bae6fd; border-radius: 6px; font-size: 14px;">
+                                <option value="">Choose a parent location...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="locationPreview" style="display: none; margin-top: 20px; padding: 15px; background: #f0fdf4; border: 2px solid #86efac; border-radius: 8px;">
+                        <div style="font-size: 12px; color: #15803d; font-weight: 600; margin-bottom: 8px;">📍 LOCATION PREVIEW:</div>
+                        <div id="previewPath" style="font-size: 14px; color: #166534; font-weight: 500;"></div>
+                    </div>
+                    
+                    <div class="btn-group" style="margin-top: 30px; gap: 12px;">
+                        <button class="btn btn-primary" onclick="addLocationFromModal()" style="flex: 1; padding: 14px; font-size: 15px;">✓ Create Location</button>
+                        <button class="btn btn-secondary" onclick="closeAddLocationModal()" style="padding: 14px;">Cancel</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -288,6 +323,8 @@
                 loadDashboard();
             } else if (pageId === 'users') {
                 refreshUsers();
+            } else if (pageId === 'calendar') {
+                renderCalendar();
             }
         }
 
@@ -969,32 +1006,168 @@
             }
         }
 
+        // Calendar Functions
+        function changeMonth(delta) {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + delta);
+            renderCalendar();
+        }
+
+        function renderCalendar() {
+            const year = currentCalendarDate.getFullYear();
+            const month = currentCalendarDate.getMonth();
+            
+            // Update month display
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December'];
+            document.getElementById('calendarMonth').textContent = `${monthNames[month]} ${year}`;
+            
+            // Get first day of month and number of days
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            const startingDayOfWeek = firstDay.getDay();
+            
+            // Get days from previous month
+            const prevMonthLastDay = new Date(year, month, 0).getDate();
+            const prevMonthDays = startingDayOfWeek;
+            
+            // Calculate total cells needed
+            const totalCells = Math.ceil((daysInMonth + startingDayOfWeek) / 7) * 7;
+            const nextMonthDays = totalCells - daysInMonth - prevMonthDays;
+            
+            // Today
+            const today = new Date();
+            const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
+            const todayDate = today.getDate();
+            
+            let html = '<div class="calendar-grid">';
+            
+            // Headers
+            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            dayNames.forEach(day => {
+                html += `<div class="calendar-header">${day}</div>`;
+            });
+            
+            // Previous month days
+            for (let i = prevMonthDays - 1; i >= 0; i--) {
+                const day = prevMonthLastDay - i;
+                html += `<div class="calendar-day other-month"><div class="calendar-day-number">${day}</div></div>`;
+            }
+            
+            // Current month days
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const dateStr = date.toISOString().split('T')[0];
+                const isToday = isCurrentMonth && day === todayDate;
+                
+                // Get tasks for this day
+                const dayTasks = currentTasks.filter(t => t.next_run.split('T')[0] === dateStr);
+                
+                html += `<div class="calendar-day ${isToday ? 'today' : ''}">`;
+                html += `<div class="calendar-day-number">${day}</div>`;
+                
+                // Add tasks
+                dayTasks.forEach(task => {
+                    const taskDate = new Date(task.next_run);
+                    const isOverdue = taskDate < today && dateStr !== today.toISOString().split('T')[0];
+                    html += `<div class="calendar-task ${isOverdue ? 'overdue' : ''}" onclick="editTaskFromCalendar(${task.id})" title="${task.name} - ${task.location}">${task.name}</div>`;
+                });
+                
+                html += '</div>';
+            }
+            
+            // Next month days
+            for (let day = 1; day <= nextMonthDays; day++) {
+                html += `<div class="calendar-day other-month"><div class="calendar-day-number">${day}</div></div>`;
+            }
+            
+            html += '</div>';
+            
+            document.getElementById('calendarView').innerHTML = html;
+        }
+
+        function editTaskFromCalendar(taskId) {
+            editTaskFromDashboard(taskId);
+        }
+
         // Add Location Modal Functions
         function showAddLocationModal() {
             // Populate parent dropdown
             const parentSelect = document.getElementById('modalFlocParent');
-            parentSelect.innerHTML = '<option value="">(None)</option>' +
+            parentSelect.innerHTML = '<option value="">Choose a parent location...</option>' +
                 currentFlocs.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
             
             // Clear form
             document.getElementById('modalFlocName').value = '';
             document.getElementById('modalFlocDesc').value = '';
+            document.querySelector('input[name="parentType"][value="none"]').checked = true;
+            document.getElementById('parentSelectContainer').style.display = 'none';
+            document.getElementById('locationPreview').style.display = 'none';
+            
+            // Add event listeners for live preview
+            document.getElementById('modalFlocName').addEventListener('input', updateLocationPreview);
+            document.getElementById('modalFlocParent').addEventListener('change', updateLocationPreview);
             
             // Show modal
             document.getElementById('addLocationModal').style.display = 'flex';
         }
 
+        function toggleParentSelect(show) {
+            document.getElementById('parentSelectContainer').style.display = show ? 'block' : 'none';
+            updateLocationPreview();
+        }
+
+        function updateLocationPreview() {
+            const name = document.getElementById('modalFlocName').value.trim();
+            const isChild = document.querySelector('input[name="parentType"][value="child"]').checked;
+            const parentId = document.getElementById('modalFlocParent').value;
+            
+            if (!name) {
+                document.getElementById('locationPreview').style.display = 'none';
+                return;
+            }
+            
+            let path = '';
+            if (isChild && parentId) {
+                const parent = currentFlocs.find(f => f.id == parentId);
+                if (parent) {
+                    // Build full path
+                    const getFullPath = (loc) => {
+                        if (loc.parent_id) {
+                            const p = currentFlocs.find(f => f.id === loc.parent_id);
+                            if (p) return getFullPath(p) + ' → ' + loc.name;
+                        }
+                        return loc.name;
+                    };
+                    path = getFullPath(parent) + ' → ' + name;
+                }
+            } else {
+                path = name;
+            }
+            
+            document.getElementById('previewPath').textContent = path;
+            document.getElementById('locationPreview').style.display = 'block';
+        }
+
         function closeAddLocationModal() {
             document.getElementById('addLocationModal').style.display = 'none';
+            document.getElementById('modalFlocName').removeEventListener('input', updateLocationPreview);
+            document.getElementById('modalFlocParent').removeEventListener('change', updateLocationPreview);
         }
 
         async function addLocationFromModal() {
             const name = document.getElementById('modalFlocName').value.trim();
             const desc = document.getElementById('modalFlocDesc').value || null;
-            const parentId = document.getElementById('modalFlocParent').value || null;
+            const isChild = document.querySelector('input[name="parentType"][value="child"]').checked;
+            const parentId = isChild ? document.getElementById('modalFlocParent').value : null;
 
             if (!name) {
-                alert('Please enter a name');
+                alert('Please enter a location name');
+                return;
+            }
+            
+            if (isChild && !parentId) {
+                alert('Please select a parent location');
                 return;
             }
 
@@ -1012,10 +1185,13 @@
 
                 closeAddLocationModal();
                 await loadDashboard();
-                alert('Location added successfully!');
+                
+                // Show success message
+                const preview = document.getElementById('previewPath').textContent;
+                alert(`✓ Location created successfully!\n\n${preview}`);
             } catch (error) {
                 console.error('Error adding functional location:', error);
-                alert('Failed to add functional location');
+                alert('Failed to add functional location. Please try again.');
             }
         }
 
