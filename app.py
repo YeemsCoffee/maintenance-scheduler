@@ -16,6 +16,19 @@ if database_url.startswith('postgres://'):
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,  # Test connections before using them
+    'pool_recycle': 300,    # Recycle connections after 5 minutes
+    'pool_size': 10,        # Maximum number of connections
+    'max_overflow': 5,      # Allow 5 extra connections if needed
+    'connect_args': {
+        'connect_timeout': 10,
+        'keepalives': 1,
+        'keepalives_idle': 30,
+        'keepalives_interval': 10,
+        'keepalives_count': 5,
+    }
+}
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
