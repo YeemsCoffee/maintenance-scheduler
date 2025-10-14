@@ -39,9 +39,6 @@ try:
     print("Adding notification preferences to users table...")
     cursor.execute("""
         ALTER TABLE users 
-        ADD COLUMN IF NOT EXISTS notify_assigned BOOLEAN DEFAULT TRUE,
-        ADD COLUMN IF NOT EXISTS notify_due_soon BOOLEAN DEFAULT TRUE,
-        ADD COLUMN IF NOT EXISTS notify_overdue BOOLEAN DEFAULT TRUE,
         ADD COLUMN IF NOT EXISTS notification_days_ahead INTEGER DEFAULT 3;
     """)
     print("✓ User notification columns added")

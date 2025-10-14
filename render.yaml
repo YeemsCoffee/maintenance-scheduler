@@ -1,14 +1,10 @@
-databases:
-  - name: maintenance-db
-    databaseName: maintenance_db
-    user: maintenance_user
-
 services:
+  # Web Service
   - type: web
     name: maintenance-scheduler
-    env: python
+    runtime: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn -w 4 -b 0.0.0.0:$PORT app:app"
+    startCommand: "gunicorn app:app"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -18,5 +14,9 @@ services:
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
-      - key: FLASK_ENV
-        value: production
+
+  # PostgreSQL Database
+  - type: pgsql
+    name: maintenance-db
+    databaseName: maintenance_db
+    plan: free  # Change to 'starter' for production

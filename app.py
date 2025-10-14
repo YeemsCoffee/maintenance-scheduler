@@ -6,7 +6,6 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import os
-from flask_mail import Mail, Message
 from sqlalchemy import desc
 
 app = Flask(__name__)
@@ -24,14 +23,6 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
-# Email configuration
-app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
-app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
-app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'true').lower() == 'true'
-app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', '')
-app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', '')
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', 'noreply@maintenance.app')
-
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt', 'png', 'jpg', 'jpeg', 'gif', 'xlsx', 'xls'}
@@ -40,7 +31,6 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 db = SQLAlchemy(app)
-mail = Mail(app)
 scheduler = BackgroundScheduler()
 
 class User(db.Model):
@@ -52,10 +42,6 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False, default='technician')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
-    # Notification preferences
-    notify_assigned = db.Column(db.Boolean, default=True)
-    notify_due_soon = db.Column(db.Boolean, default=True)
-    notify_overdue = db.Column(db.Boolean, default=True)
     notification_days_ahead = db.Column(db.Integer, default=3)
     
     assigned_tasks = db.relationship('MaintenanceTask', backref='assignee', lazy=True)

@@ -313,13 +313,12 @@
                             <th>Email</th>
                             <th>Role</th>
                             <th>Status</th>
-                            <th>Notifications</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="usersTableBody">
                         <tr>
-                            <td colspan="6" class="empty-state">Loading users...</td>
+                            <td colspan="5" class="empty-state">Loading users...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -399,7 +398,6 @@
         let currentCalendarDate = new Date();
         let notificationPanelOpen = false;
 
-        // Check authentication
         async function checkAuth() {
             try {
                 const response = await fetch(`${API_BASE}/api/auth/me`, {
@@ -439,7 +437,6 @@
             }
         }
 
-        // Notification functions
         async function updateNotificationBadge() {
             const badge = document.getElementById('notificationBadge');
             if (currentUserData.unread_notifications > 0) {
@@ -476,19 +473,14 @@
         }
 
         async function handleNotificationClick(notifId, taskId) {
-            // Mark as read
             await fetch(`${API_BASE}/api/notifications/${notifId}/read`, {
                 method: 'PUT',
                 credentials: 'include'
             });
             
-            // Refresh auth to update badge
             await checkAuth();
-            
-            // Close panel
             toggleNotifications();
             
-            // Navigate to task if applicable
             if (taskId) {
                 const task = currentTasks.find(t => t.id === taskId);
                 if (task) {
@@ -532,7 +524,6 @@
             return date.toLocaleDateString();
         }
 
-        // Page Navigation
         function showPage(pageId) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
@@ -550,7 +541,6 @@
             }
         }
 
-        // Dashboard Functions
         async function loadDashboard() {
             try {
                 const [tasks, locations, flocs, users, stats] = await Promise.all([
@@ -566,7 +556,6 @@
                 currentLocations = locations;
                 currentUsers = users;
 
-                // Update stats
                 document.getElementById('statTotalTasks').textContent = stats.my_tasks.total;
                 document.getElementById('statOverdue').textContent = stats.my_tasks.overdue;
                 document.getElementById('statDueWeek').textContent = stats.my_tasks.due_this_week;
@@ -611,7 +600,6 @@
                     `;
                 }).join('');
                 
-                // Apply widths after HTML is inserted
                 setTimeout(() => {
                     document.querySelectorAll('.workload-bar-fill').forEach(el => {
                         el.style.width = el.getAttribute('data-width') + '%';
@@ -1209,7 +1197,7 @@
 
                 const tbody = document.getElementById('usersTableBody');
                 if (users.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No users</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No users</td></tr>';
                 } else {
                     tbody.innerHTML = users.map(u => `
                         <tr>
@@ -1226,12 +1214,6 @@
                                 <span class="user-status ${u.is_active ? 'active' : 'inactive'}">
                                     ${u.is_active ? '✓ Active' : '✗ Disabled'}
                                 </span>
-                            </td>
-                            <td class="notification-prefs">
-                                ${u.notify_assigned ? '✓ Assigned' : ''} 
-                                ${u.notify_due_soon ? '✓ Due Soon' : ''} 
-                                ${u.notify_overdue ? '✓ Overdue' : ''}
-                                <br><small>${u.notification_days_ahead} days ahead</small>
                             </td>
                             <td>
                                 ${u.username !== 'admin' ? `
@@ -1392,8 +1374,6 @@
 
         function closeAddLocationModal() {
             document.getElementById('addLocationModal').classList.remove('show');
-            document.getElementById('modalFlocName').removeEventListener('input', updateLocationPreview);
-            document.getElementById('modalFlocParent').removeEventListener('change', updateLocationPreview);
         }
 
         async function addLocationFromModal() {
