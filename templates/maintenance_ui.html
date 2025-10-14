@@ -1339,6 +1339,7 @@
             document.getElementById('calendarView').innerHTML = html;
         }
 
+        
         function showAddLocationModal() {
             const parentSelect = document.getElementById('modalFlocParent');
             parentSelect.innerHTML = '<option value="">Choose parent...</option>' +
@@ -1347,13 +1348,17 @@
             document.getElementById('modalFlocName').value = '';
             document.getElementById('modalFlocDesc').value = '';
             
-            if (selectedFlocId) {
+            // Check if a functional location is currently selected
+            const selectedNode = document.querySelector('#flocTreeNav .tree-node.selected');
+            if (selectedNode && selectedFlocId) {
+                // Automatically set to child mode with the selected location as parent
                 document.querySelector('input[name="parentType"][value="child"]').checked = true;
-                document.getElementById('parentSelectContainer').classList.add('show');
+                document.getElementById('parentSelectContainer').style.display = 'block';
                 document.getElementById('modalFlocParent').value = selectedFlocId;
             } else {
+                // No selection - default to top level
                 document.querySelector('input[name="parentType"][value="none"]').checked = true;
-                document.getElementById('parentSelectContainer').classList.remove('show');
+                document.getElementById('parentSelectContainer').style.display = 'none';
             }
             
             document.getElementById('addLocationModal').classList.add('show');
@@ -1362,9 +1367,9 @@
         function toggleParentSelect(show) {
             const container = document.getElementById('parentSelectContainer');
             if (show) {
-                container.classList.add('show');
+                container.style.display = 'block';
             } else {
-                container.classList.remove('show');
+                container.style.display = 'none';
             }
             
             if (!show) {
