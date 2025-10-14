@@ -177,20 +177,8 @@ def is_descendant(node_id, possible_ancestor_id):
             stack.append(child.id)
     return False
 
-def send_email_notification(user, subject, body):
-    """Send email notification to user"""
-    if not app.config['MAIL_USERNAME']:
-        return  # Email not configured
-    
-    try:
-        msg = Message(subject, recipients=[user.email])
-        msg.body = body
-        mail.send(msg)
-    except Exception as e:
-        print(f"Failed to send email to {user.email}: {e}")
-
 def create_notification(user_id, task_id, title, message, notif_type):
-    """Create in-app notification and optionally send email"""
+    """Create in-app notification"""
     notification = Notification(
         user_id=user_id,
         task_id=task_id,
@@ -207,16 +195,6 @@ def create_notification(user_id, task_id, title, message, notif_type):
         send_email_notification(user, title, message)
         notification.email_sent = True
         db.session.commit()
-
-def should_send_email(user, notif_type):
-    """Check if email should be sent based on user preferences"""
-    if notif_type == 'assigned':
-        return user.notify_assigned
-    elif notif_type == 'due_soon':
-        return user.notify_due_soon
-    elif notif_type == 'overdue':
-        return user.notify_overdue
-    return True
 
 def run_maintenance_task(task_id):
     with app.app_context():
@@ -242,9 +220,6 @@ def check_upcoming_tasks():
         users = User.query.filter_by(is_active=True).all()
         
         for user in users:
-            if not user.notify_due_soon:
-                continue
-            
             days_ahead = user.notification_days_ahead or 3
             cutoff_date = datetime.utcnow() + timedelta(days=days_ahead)
             
@@ -275,7 +250,6 @@ def check_upcoming_tasks():
                         f"The maintenance task '{task.name}' at {task.location.name} is due in {days_until} day(s).",
                         'due_soon'
                     )
-
 # Authentication routes
 @app.route('/api/auth/register', methods=['POST'])
 def register():
@@ -371,12 +345,6 @@ def update_user(user_id):
     
     # Users can update their own notification preferences
     if user_id == session['user_id'] or current_user.role == 'admin':
-        if 'notify_assigned' in data:
-            user.notify_assigned = data['notify_assigned']
-        if 'notify_due_soon' in data:
-            user.notify_due_soon = data['notify_due_soon']
-        if 'notify_overdue' in data:
-            user.notify_overdue = data['notify_overdue']
         if 'notification_days_ahead' in data:
             user.notification_days_ahead = data['notification_days_ahead']
     
