@@ -6,6 +6,8 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import os
+from flask_mail import Mail, Message
+from sqlalchemy import desc
 
 app = Flask(__name__)
 
@@ -22,6 +24,14 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
+# Email configuration
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'true').lower() == 'true'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', '')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', '')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', 'noreply@maintenance.app')
+
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt', 'png', 'jpg', 'jpeg', 'gif', 'xlsx', 'xls'}
@@ -30,6 +40,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 db = SQLAlchemy(app)
+mail = Mail(app)
 scheduler = BackgroundScheduler()
 
 class User(db.Model):
@@ -41,6 +52,15 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False, default='technician')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
+    # Notification preferences
+    notify_assigned = db.Column(db.Boolean, default=True)
+    notify_due_soon = db.Column(db.Boolean, default=True)
+    notify_overdue = db.Column(db.Boolean, default=True)
+    notification_days_ahead = db.Column(db.Integer, default=3)
+    
+    assigned_tasks = db.relationship('MaintenanceTask', backref='assignee', lazy=True)
+    completed_tasks = db.relationship('TaskCompletion', backref='completed_by_user', lazy=True)
+    notifications = db.relationship('Notification', backref='user', lazy=True, cascade='all, delete-orphan')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -76,7 +96,14 @@ class MaintenanceTask(db.Model):
     lead_time_days = db.Column(db.Integer)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     func_loc_id = db.Column(db.Integer, db.ForeignKey('functional_locations.id'))
+    
+    # New fields
+    assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    status = db.Column(db.String(20), default='pending')  # pending, in_progress, completed, overdue
+    last_completed = db.Column(db.DateTime, nullable=True)
+    
     attachments = db.relationship('TaskAttachment', backref='task', lazy=True, cascade='all, delete-orphan')
+    completions = db.relationship('TaskCompletion', backref='task', lazy=True, cascade='all, delete-orphan')
 
     def schedule_notifications(self):
         scheduler.add_job(
@@ -85,6 +112,32 @@ class MaintenanceTask(db.Model):
             run_date=self.next_run,
             args=[self.id]
         )
+    
+    def update_status(self):
+        """Update task status based on next_run date"""
+        now = datetime.utcnow()
+        if self.next_run < now:
+            self.status = 'overdue'
+        elif self.next_run <= now + timedelta(days=3):
+            if self.status != 'in_progress':
+                self.status = 'pending'
+        else:
+            if self.status != 'in_progress':
+                self.status = 'pending'
+
+class TaskCompletion(db.Model):
+    __tablename__ = 'task_completions'
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('maintenance_tasks.id'), nullable=False)
+    completed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    scheduled_date = db.Column(db.DateTime, nullable=False)
+    actual_date = db.Column(db.DateTime, nullable=False)
+    notes = db.Column(db.Text)
+    duration_minutes = db.Column(db.Integer)
+    parts_used = db.Column(db.Text)  # JSON string of parts used
+    labor_hours = db.Column(db.Float)
+    status = db.Column(db.String(20), default='completed')  # completed, skipped
 
 class TaskAttachment(db.Model):
     __tablename__ = 'task_attachments'
@@ -94,6 +147,18 @@ class TaskAttachment(db.Model):
     original_filename = db.Column(db.String(255), nullable=False)
     file_type = db.Column(db.String(50))
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Notification(db.Model):
+    __tablename__ = 'notifications'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    task_id = db.Column(db.Integer, db.ForeignKey('maintenance_tasks.id'), nullable=True)
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    type = db.Column(db.String(50))  # assigned, due_soon, overdue, completed
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    email_sent = db.Column(db.Boolean, default=False)
 
 def login_required(f):
     @wraps(f)
@@ -126,15 +191,106 @@ def is_descendant(node_id, possible_ancestor_id):
             stack.append(child.id)
     return False
 
+def send_email_notification(user, subject, body):
+    """Send email notification to user"""
+    if not app.config['MAIL_USERNAME']:
+        return  # Email not configured
+    
+    try:
+        msg = Message(subject, recipients=[user.email])
+        msg.body = body
+        mail.send(msg)
+    except Exception as e:
+        print(f"Failed to send email to {user.email}: {e}")
+
+def create_notification(user_id, task_id, title, message, notif_type):
+    """Create in-app notification and optionally send email"""
+    notification = Notification(
+        user_id=user_id,
+        task_id=task_id,
+        title=title,
+        message=message,
+        type=notif_type
+    )
+    db.session.add(notification)
+    db.session.commit()
+    
+    # Send email if user preferences allow
+    user = User.query.get(user_id)
+    if user and should_send_email(user, notif_type):
+        send_email_notification(user, title, message)
+        notification.email_sent = True
+        db.session.commit()
+
+def should_send_email(user, notif_type):
+    """Check if email should be sent based on user preferences"""
+    if notif_type == 'assigned':
+        return user.notify_assigned
+    elif notif_type == 'due_soon':
+        return user.notify_due_soon
+    elif notif_type == 'overdue':
+        return user.notify_overdue
+    return True
+
 def run_maintenance_task(task_id):
     with app.app_context():
         task = MaintenanceTask.query.get(task_id)
         if task:
             print(f"Task due: '{task.name}' at location '{task.location.name}'")
-            task.next_run += timedelta(days=task.frequency_days)
+            task.status = 'overdue'
             db.session.commit()
-            task.schedule_notifications()
+            
+            # Notify assigned user
+            if task.assigned_to:
+                create_notification(
+                    task.assigned_to,
+                    task.id,
+                    f"Task Overdue: {task.name}",
+                    f"The maintenance task '{task.name}' at {task.location.name} is now overdue.",
+                    'overdue'
+                )
 
+def check_upcoming_tasks():
+    """Check for tasks due soon and send notifications"""
+    with app.app_context():
+        users = User.query.filter_by(is_active=True).all()
+        
+        for user in users:
+            if not user.notify_due_soon:
+                continue
+            
+            days_ahead = user.notification_days_ahead or 3
+            cutoff_date = datetime.utcnow() + timedelta(days=days_ahead)
+            
+            # Get tasks assigned to user that are due soon
+            upcoming_tasks = MaintenanceTask.query.filter(
+                MaintenanceTask.assigned_to == user.id,
+                MaintenanceTask.next_run <= cutoff_date,
+                MaintenanceTask.next_run > datetime.utcnow(),
+                MaintenanceTask.status.in_(['pending', 'in_progress'])
+            ).all()
+            
+            for task in upcoming_tasks:
+                # Check if we already notified about this task
+                existing = Notification.query.filter_by(
+                    user_id=user.id,
+                    task_id=task.id,
+                    type='due_soon'
+                ).filter(
+                    Notification.created_at > datetime.utcnow() - timedelta(days=1)
+                ).first()
+                
+                if not existing:
+                    days_until = (task.next_run - datetime.utcnow()).days
+                    create_notification(
+                        user.id,
+                        task.id,
+                        f"Task Due Soon: {task.name}",
+                        f"The maintenance task '{task.name}' at {task.location.name} is due in {days_until} day(s).",
+                        'due_soon'
+                    )
+
+# Authentication routes
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -189,10 +345,18 @@ def logout():
 @login_required
 def get_current_user():
     user = User.query.get(session['user_id'])
-    return jsonify({'id': user.id, 'username': user.username, 'email': user.email, 'role': user.role}), 200
+    unread_count = Notification.query.filter_by(user_id=user.id, is_read=False).count()
+    return jsonify({
+        'id': user.id, 
+        'username': user.username, 
+        'email': user.email, 
+        'role': user.role,
+        'unread_notifications': unread_count
+    }), 200
 
+# User management routes
 @app.route('/api/users', methods=['GET'])
-@admin_required
+@login_required
 def get_users():
     users = User.query.all()
     return jsonify([{
@@ -201,23 +365,82 @@ def get_users():
         'email': u.email,
         'role': u.role,
         'is_active': u.is_active,
-        'created_at': u.created_at.isoformat()
+        'created_at': u.created_at.isoformat(),
+        'notify_assigned': u.notify_assigned,
+        'notify_due_soon': u.notify_due_soon,
+        'notify_overdue': u.notify_overdue,
+        'notification_days_ahead': u.notification_days_ahead
     } for u in users])
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
-@admin_required
+@login_required
 def update_user(user_id):
     data = request.get_json()
     user = User.query.get_or_404(user_id)
     
-    if 'role' in data:
-        user.role = data['role']
-    if 'is_active' in data:
-        user.is_active = data['is_active']
+    # Only admins can change roles and status
+    current_user = User.query.get(session['user_id'])
+    if current_user.role == 'admin':
+        if 'role' in data:
+            user.role = data['role']
+        if 'is_active' in data:
+            user.is_active = data['is_active']
+    
+    # Users can update their own notification preferences
+    if user_id == session['user_id'] or current_user.role == 'admin':
+        if 'notify_assigned' in data:
+            user.notify_assigned = data['notify_assigned']
+        if 'notify_due_soon' in data:
+            user.notify_due_soon = data['notify_due_soon']
+        if 'notify_overdue' in data:
+            user.notify_overdue = data['notify_overdue']
+        if 'notification_days_ahead' in data:
+            user.notification_days_ahead = data['notification_days_ahead']
     
     db.session.commit()
     return jsonify({'message': 'User updated'}), 200
 
+# Notification routes
+@app.route('/api/notifications', methods=['GET'])
+@login_required
+def get_notifications():
+    limit = request.args.get('limit', 50, type=int)
+    notifications = Notification.query.filter_by(
+        user_id=session['user_id']
+    ).order_by(desc(Notification.created_at)).limit(limit).all()
+    
+    return jsonify([{
+        'id': n.id,
+        'task_id': n.task_id,
+        'title': n.title,
+        'message': n.message,
+        'type': n.type,
+        'is_read': n.is_read,
+        'created_at': n.created_at.isoformat()
+    } for n in notifications])
+
+@app.route('/api/notifications/<int:notif_id>/read', methods=['PUT'])
+@login_required
+def mark_notification_read(notif_id):
+    notification = Notification.query.get_or_404(notif_id)
+    if notification.user_id != session['user_id']:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    notification.is_read = True
+    db.session.commit()
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/notifications/mark-all-read', methods=['PUT'])
+@login_required
+def mark_all_notifications_read():
+    Notification.query.filter_by(
+        user_id=session['user_id'],
+        is_read=False
+    ).update({'is_read': True})
+    db.session.commit()
+    return jsonify({'status': 'ok'})
+
+# Task routes
 @app.route('/')
 def index():
     if 'user_id' not in session:
@@ -254,16 +477,34 @@ def handle_tasks():
             vendor=data.get('vendor'),
             vendor_part_number=data.get('vendor_part_number'),
             func_loc_id=int(data.get('func_loc_id')) if data.get('func_loc_id') else None,
-            lead_time_days=int(data.get('lead_time_days', 0))
+            lead_time_days=int(data.get('lead_time_days', 0)),
+            assigned_to=int(data.get('assigned_to')) if data.get('assigned_to') else None
         )
+        task.update_status()
         db.session.add(task)
         db.session.commit()
+        
+        # Notify assigned user
+        if task.assigned_to:
+            create_notification(
+                task.assigned_to,
+                task.id,
+                f"New Task Assigned: {task.name}",
+                f"You have been assigned the maintenance task '{task.name}' at {task.location.name}. Due: {task.next_run.strftime('%Y-%m-%d')}",
+                'assigned'
+            )
+        
         task.schedule_notifications()
         if request.form:
             return redirect(url_for('index'))
         return jsonify({'id': task.id}), 201
 
+    # Update all task statuses before returning
     tasks = MaintenanceTask.query.order_by(MaintenanceTask.next_run).all()
+    for task in tasks:
+        task.update_status()
+    db.session.commit()
+    
     return jsonify([{
         'id': t.id,
         'name': t.name,
@@ -275,6 +516,11 @@ def handle_tasks():
         'vendor_part_number': t.vendor_part_number,
         'func_loc_id': t.func_loc_id,
         'lead_time_days': t.lead_time_days,
+        'assigned_to': t.assigned_to,
+        'assignee_name': t.assignee.username if t.assignee else None,
+        'status': t.status,
+        'last_completed': t.last_completed.isoformat() if t.last_completed else None,
+        'completion_count': len(t.completions),
         'attachments': [{
             'id': a.id,
             'filename': a.filename,
@@ -289,6 +535,9 @@ def handle_tasks():
 def update_task(task_id):
     data = request.get_json() or abort(400, "JSON body required")
     task = MaintenanceTask.query.get_or_404(task_id)
+    
+    old_assigned_to = task.assigned_to
+    
     task.name = data['name']
     task.frequency_days = int(data['frequency_days'])
     task.next_run = datetime.fromisoformat(data['next_run'])
@@ -298,6 +547,23 @@ def update_task(task_id):
     task.vendor_part_number = data.get('vendor_part_number')
     task.lead_time_days = int(data.get('lead_time_days', 0))
     task.func_loc_id = int(data.get('func_loc_id')) if data.get('func_loc_id') else None
+    task.assigned_to = int(data.get('assigned_to')) if data.get('assigned_to') else None
+    
+    if 'status' in data:
+        task.status = data['status']
+    else:
+        task.update_status()
+    
+    # Notify if assignee changed
+    if task.assigned_to and task.assigned_to != old_assigned_to:
+        create_notification(
+            task.assigned_to,
+            task.id,
+            f"Task Assigned: {task.name}",
+            f"You have been assigned the maintenance task '{task.name}' at {task.location.name}. Due: {task.next_run.strftime('%Y-%m-%d')}",
+            'assigned'
+        )
+    
     db.session.commit()
     return jsonify({'status': 'ok'})
 
@@ -313,6 +579,72 @@ def delete_task(task_id):
     db.session.commit()
     return '', 204
 
+# Task completion routes
+@app.route('/tasks/<int:task_id>/complete', methods=['POST'])
+@login_required
+def complete_task(task_id):
+    data = request.get_json()
+    task = MaintenanceTask.query.get_or_404(task_id)
+    
+    # Create completion record
+    completion = TaskCompletion(
+        task_id=task.id,
+        completed_by=session['user_id'],
+        scheduled_date=task.next_run,
+        actual_date=datetime.utcnow(),
+        notes=data.get('notes'),
+        duration_minutes=data.get('duration_minutes'),
+        parts_used=data.get('parts_used'),
+        labor_hours=data.get('labor_hours'),
+        status=data.get('status', 'completed')
+    )
+    db.session.add(completion)
+    
+    # Update task
+    task.last_completed = datetime.utcnow()
+    
+    if completion.status == 'completed':
+        # Reschedule to next occurrence
+        task.next_run = task.next_run + timedelta(days=task.frequency_days)
+        task.status = 'pending'
+    elif completion.status == 'skipped':
+        # Still reschedule but mark as skipped
+        task.next_run = task.next_run + timedelta(days=task.frequency_days)
+        task.status = 'pending'
+    
+    task.update_status()
+    task.schedule_notifications()
+    
+    db.session.commit()
+    
+    return jsonify({
+        'id': completion.id,
+        'task_id': task.id,
+        'next_run': task.next_run.isoformat(),
+        'status': task.status
+    }), 201
+
+@app.route('/tasks/<int:task_id>/completions', methods=['GET'])
+@login_required
+def get_task_completions(task_id):
+    completions = TaskCompletion.query.filter_by(task_id=task_id).order_by(
+        desc(TaskCompletion.completed_at)
+    ).all()
+    
+    return jsonify([{
+        'id': c.id,
+        'completed_by': c.completed_by_user.username,
+        'completed_at': c.completed_at.isoformat(),
+        'scheduled_date': c.scheduled_date.isoformat(),
+        'actual_date': c.actual_date.isoformat(),
+        'notes': c.notes,
+        'duration_minutes': c.duration_minutes,
+        'parts_used': c.parts_used,
+        'labor_hours': c.labor_hours,
+        'status': c.status
+    } for c in completions])
+
+# Attachment routes
 @app.route('/tasks/<int:task_id>/attachments', methods=['POST'])
 @login_required
 def upload_attachment(task_id):
@@ -373,6 +705,7 @@ def download_attachment(attachment_id):
         download_name=attachment.original_filename
     )
 
+# Functional location routes
 @app.route('/funclocations', methods=['GET', 'POST'])
 @login_required
 def handle_funclocs():
@@ -428,6 +761,92 @@ def delete_funcloc(fl_id):
     db.session.commit()
     return '', 204
 
+# Dashboard/analytics routes
+@app.route('/api/dashboard/stats', methods=['GET'])
+@login_required
+def get_dashboard_stats():
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    
+    # Get tasks assigned to current user
+    my_tasks = MaintenanceTask.query.filter_by(assigned_to=user_id).all()
+    
+    # Update statuses
+    for task in my_tasks:
+        task.update_status()
+    db.session.commit()
+    
+    # Calculate stats
+    total_tasks = len(my_tasks)
+    overdue_tasks = len([t for t in my_tasks if t.status == 'overdue'])
+    due_this_week = len([t for t in my_tasks if t.next_run <= datetime.utcnow() + timedelta(days=7) and t.status != 'overdue'])
+    in_progress = len([t for t in my_tasks if t.status == 'in_progress'])
+    
+    # Completion stats for this month
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    completions_this_month = TaskCompletion.query.filter(
+        TaskCompletion.completed_by == user_id,
+        TaskCompletion.completed_at >= month_start,
+        TaskCompletion.status == 'completed'
+    ).count()
+    
+    # All tasks stats (for admins)
+    all_stats = None
+    if user.role == 'admin':
+        all_tasks = MaintenanceTask.query.all()
+        for task in all_tasks:
+            task.update_status()
+        db.session.commit()
+        
+        all_stats = {
+            'total_tasks': len(all_tasks),
+            'overdue_tasks': len([t for t in all_tasks if t.status == 'overdue']),
+            'due_this_week': len([t for t in all_tasks if t.next_run <= datetime.utcnow() + timedelta(days=7) and t.status != 'overdue']),
+            'unassigned_tasks': len([t for t in all_tasks if not t.assigned_to])
+        }
+    
+    return jsonify({
+        'my_tasks': {
+            'total': total_tasks,
+            'overdue': overdue_tasks,
+            'due_this_week': due_this_week,
+            'in_progress': in_progress,
+            'completed_this_month': completions_this_month
+        },
+        'all_tasks': all_stats
+    })
+
+@app.route('/api/workload', methods=['GET'])
+@login_required
+def get_workload():
+    """Get workload for all users"""
+    users = User.query.filter_by(is_active=True).all()
+    workload = []
+    
+    for user in users:
+        tasks = MaintenanceTask.query.filter_by(assigned_to=user.id).all()
+        
+        # Update statuses
+        for task in tasks:
+            task.update_status()
+        db.session.commit()
+        
+        overdue = len([t for t in tasks if t.status == 'overdue'])
+        due_soon = len([t for t in tasks if t.next_run <= datetime.utcnow() + timedelta(days=7) and t.status != 'overdue'])
+        
+        workload.append({
+            'user_id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'role': user.role,
+            'total_tasks': len(tasks),
+            'overdue': overdue,
+            'due_this_week': due_soon
+        })
+    
+    return jsonify(workload)
+
+# Initialize database and scheduler
 with app.app_context():
     db.create_all()
     
@@ -440,6 +859,14 @@ with app.app_context():
     
     for task in MaintenanceTask.query.all():
         task.schedule_notifications()
+
+# Schedule recurring jobs
+scheduler.add_job(
+    func=check_upcoming_tasks,
+    trigger='interval',
+    hours=6,  # Check every 6 hours
+    id='check_upcoming_tasks'
+)
 
 scheduler.start()
 

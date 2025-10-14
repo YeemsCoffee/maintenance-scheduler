@@ -9,25 +9,63 @@
 <body>
     <div class="container">
         <header>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="header-content">
                 <h1>🔧 Maintenance Scheduler</h1>
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="color: #6b7280; font-size: 14px;">
+                <div class="header-actions">
+                    <span class="user-info">
                         👤 <span id="currentUser"></span> (<span id="currentRole"></span>)
                     </span>
+                    <div class="notification-bell" onclick="toggleNotifications()">
+                        🔔
+                        <span id="notificationBadge" class="notification-badge">0</span>
+                    </div>
+                    <button class="btn btn-secondary btn-small" onclick="showPage('workload')" id="workloadBtn">👥 Workload</button>
                     <button class="btn btn-secondary btn-small" onclick="showPage('calendar')">📅 Calendar</button>
-                    <button class="btn btn-secondary btn-small" onclick="showPage('users')" id="manageUsersBtn" style="display: none;">Manage Users</button>
+                    <button class="btn btn-secondary btn-small hidden" onclick="showPage('users')" id="manageUsersBtn">Manage Users</button>
                     <button class="btn btn-secondary btn-small" onclick="handleLogout()">Logout</button>
                 </div>
             </div>
         </header>
 
+        <!-- Notification Panel -->
+        <div id="notificationPanel" class="notification-panel">
+            <div class="notification-header">
+                <h3 class="notification-header-title">Notifications</h3>
+                <button class="btn btn-secondary btn-small" onclick="markAllRead()">Mark all read</button>
+            </div>
+            <div class="notification-list" id="notificationList">
+                <div class="notification-empty">
+                    No notifications
+                </div>
+            </div>
+        </div>
+
         <!-- Dashboard Page -->
         <div id="dashboard" class="page active">
+            <!-- Stats Grid -->
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="statTotalTasks">0</div>
+                    <div class="stat-label">My Tasks</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statOverdue">0</div>
+                    <div class="stat-label">Overdue</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statDueWeek">0</div>
+                    <div class="stat-label">Due This Week</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statCompleted">0</div>
+                    <div class="stat-label">Completed This Month</div>
+                </div>
+            </div>
+
             <div class="grid">
                 <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2 style="margin: 0;">🏗️ Functional Location Structure</h2>
+                    <div class="card-header">
+                        <h2>🗂️ Functional Location Structure</h2>
                         <button class="btn btn-primary btn-small" onclick="showAddLocationModal()">+ Add Location</button>
                     </div>
                     <div class="tree" id="flocTreeNav">
@@ -44,14 +82,40 @@
             </div>
         </div>
 
+        <!-- Workload Page -->
+        <div id="workload" class="page">
+            <div class="card">
+                <div class="card-header">
+                    <h2>👥 Team Workload</h2>
+                    <button class="btn btn-secondary btn-small" onclick="showPage('dashboard')">← Back</button>
+                </div>
+                <table class="workload-table">
+                    <thead>
+                        <tr>
+                            <th>Technician</th>
+                            <th>Total Tasks</th>
+                            <th>Overdue</th>
+                            <th>Due This Week</th>
+                            <th>Workload</th>
+                        </tr>
+                    </thead>
+                    <tbody id="workloadTableBody">
+                        <tr>
+                            <td colspan="5" class="empty-state">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Calendar Page -->
         <div id="calendar" class="page">
             <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2 style="margin: 0;">📅 Maintenance Calendar</h2>
-                    <div style="display: flex; gap: 10px; align-items: center;">
+                <div class="card-header">
+                    <h2>📅 Maintenance Calendar</h2>
+                    <div class="calendar-controls">
                         <button class="btn btn-secondary btn-small" onclick="changeMonth(-1)">← Prev</button>
-                        <span id="calendarMonth" style="font-weight: 600; min-width: 150px; text-align: center;"></span>
+                        <span id="calendarMonth" class="calendar-month-display"></span>
                         <button class="btn btn-secondary btn-small" onclick="changeMonth(1)">Next →</button>
                         <button class="btn btn-secondary btn-small" onclick="showPage('dashboard')">← Back</button>
                     </div>
@@ -68,25 +132,45 @@
                     <label>Task Name</label>
                     <input type="text" id="taskName" placeholder="e.g., Oil change">
                 </div>
-                <div class="form-group">
-                    <label>Frequency (days)</label>
-                    <input type="number" id="taskFreq" placeholder="90">
+                <div class="two-col-grid">
+                    <div class="form-group">
+                        <label>Frequency (days)</label>
+                        <input type="number" id="taskFreq" placeholder="90">
+                    </div>
+                    <div class="form-group">
+                        <label>Next Run Date</label>
+                        <input type="date" id="taskDate">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Next Run Date</label>
-                    <input type="date" id="taskDate">
+                <div class="two-col-grid">
+                    <div class="form-group">
+                        <label>Location</label>
+                        <select id="taskLocation">
+                            <option value="">Select location...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Functional Location</label>
+                        <select id="taskFuncLoc">
+                            <option value="">Select functional location...</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Location</label>
-                    <select id="taskLocation">
-                        <option value="">Select location...</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Functional Location</label>
-                    <select id="taskFuncLoc">
-                        <option value="">Select functional location...</option>
-                    </select>
+                <div class="two-col-grid">
+                    <div class="form-group">
+                        <label>Assign To</label>
+                        <select id="taskAssignee">
+                            <option value="">Unassigned</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="taskStatus">
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="overdue">Overdue</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Part Name</label>
@@ -109,20 +193,67 @@
                 
                 <div class="form-group">
                     <label>📎 Attachments (SOPs, Job Aids, etc.)</label>
-                    <div id="attachmentsList" style="margin-bottom: 10px;">
-                        <!-- Attachments will be listed here -->
-                    </div>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.gif,.xlsx,.xls" style="flex: 1;">
+                    <div id="attachmentsList" class="attachments-list"></div>
+                    <div class="file-upload-group">
+                        <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.gif,.xlsx,.xls" class="file-input">
                         <button class="btn btn-secondary btn-small" onclick="uploadFile()">Upload</button>
                     </div>
-                    <p style="font-size: 12px; color: #9ca3af; margin-top: 5px;">Allowed: PDF, Word, Excel, Images, Text files (Max 16MB)</p>
+                </div>
+
+                <!-- Completion History -->
+                <div class="form-group">
+                    <label>📜 Completion History</label>
+                    <div id="completionHistory">
+                        <p class="empty-state-text">No completions yet</p>
+                    </div>
                 </div>
 
                 <div class="btn-group">
+                    <button class="btn btn-primary" onclick="completeTaskPrompt()" id="completeTaskBtn">✓ Complete Task</button>
                     <button class="btn btn-primary" id="updateTaskBtn" onclick="updateTask()">Save Changes</button>
                     <button class="btn btn-danger" id="deleteTaskBtn" onclick="deleteTask()">Delete Task</button>
-                    <button class="btn btn-secondary" onclick="showPage('dashboard')">← Back to Dashboard</button>
+                    <button class="btn btn-secondary" onclick="showPage('dashboard')">← Back</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Complete Task Modal -->
+        <div id="completeTaskModal" class="complete-task-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>✓ Complete Task</h2>
+                    <p id="completeTaskName" class="modal-subtitle"></p>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Completion Status</label>
+                        <select id="completionStatus">
+                            <option value="completed">✓ Completed Successfully</option>
+                            <option value="skipped">⊘ Skipped (with reason)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Notes / Observations</label>
+                        <textarea id="completionNotes" placeholder="Any notes about the work performed..."></textarea>
+                    </div>
+                    <div class="two-col-grid">
+                        <div class="form-group">
+                            <label>Duration (minutes)</label>
+                            <input type="number" id="completionDuration" placeholder="60">
+                        </div>
+                        <div class="form-group">
+                            <label>Labor Hours</label>
+                            <input type="number" step="0.5" id="completionLabor" placeholder="1.0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Parts Used</label>
+                        <textarea id="completionParts" placeholder="List parts used (optional)..."></textarea>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="submitCompletion()">Complete Task</button>
+                        <button class="btn btn-secondary" onclick="closeCompleteModal()">Cancel</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -131,21 +262,21 @@
         <div id="funcloc" class="page">
             <div class="grid">
                 <div class="card">
-                    <h2>🏗️ Functional Location Structure</h2>
+                    <h2>🗂️ Functional Location Structure</h2>
                     <div class="tree" id="flocTree">
                         <div class="empty-state">Loading...</div>
                     </div>
                     <div class="btn-group">
                         <button class="btn btn-secondary" onclick="refreshFlocs()">Refresh</button>
-                        <button class="btn btn-secondary" onclick="showPage('dashboard')" style="margin-left: auto;">← Back to Dashboard</button>
+                        <button class="btn btn-secondary btn-auto-margin" onclick="showPage('dashboard')">← Back</button>
                     </div>
                 </div>
 
                 <div>
-                    <div class="card" style="margin-bottom: 20px;">
+                    <div class="card">
                         <h2>✏️ Edit Selected</h2>
                         <div id="flocEditSection">
-                            <p style="color: #9ca3af; text-align: center; padding: 20px;">Select a functional location from the tree</p>
+                            <p class="empty-state-text">Select a functional location from the tree</p>
                         </div>
                     </div>
 
@@ -171,18 +302,18 @@
             </div>
         </div>
 
-        <!-- User Management Page (Admin Only) -->
+        <!-- User Management Page -->
         <div id="users" class="page">
             <div class="card">
                 <h2>👥 User Management</h2>
-                <table>
+                <table class="workload-table">
                     <thead>
                         <tr>
                             <th>Username</th>
                             <th>Email</th>
                             <th>Role</th>
                             <th>Status</th>
-                            <th>Created</th>
+                            <th>Notifications</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -194,66 +325,60 @@
                 </table>
                 <div class="btn-group">
                     <button class="btn btn-secondary" onclick="refreshUsers()">Refresh</button>
-                    <button class="btn btn-secondary" onclick="showPage('dashboard')" style="margin-left: auto;">← Back to Dashboard</button>
+                    <button class="btn btn-secondary btn-auto-margin" onclick="showPage('dashboard')">← Back</button>
                 </div>
             </div>
         </div>
 
         <!-- Add Location Modal -->
-        <div id="addLocationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
-            <div style="background: white; border-radius: 16px; padding: 0; max-width: 600px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden;">
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; color: white;">
-                    <h2 style="margin: 0; font-size: 24px;">➕ Create Functional Location</h2>
-                    <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 14px;">Add a new location to organize your maintenance tasks</p>
+        <div id="addLocationModal" class="modal-overlay">
+            <div class="modal-dialog">
+                <div class="modal-header">
+                    <h2>➕ Create Functional Location</h2>
+                    <p>Add a new location to organize your maintenance tasks</p>
                 </div>
                 
-                <div style="padding: 30px;">
+                <div class="modal-body">
                     <div class="form-group">
-                        <label style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; font-weight: 600;">Location Name *</label>
-                        <input type="text" id="modalFlocName" placeholder="e.g., Building A, Floor 2, Production Line 1" style="font-size: 16px; padding: 14px;">
+                        <label>Location Name *</label>
+                        <input type="text" id="modalFlocName" placeholder="e.g., Building A, Floor 2">
                     </div>
                     
                     <div class="form-group">
-                        <label style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; font-weight: 600;">Description</label>
-                        <textarea id="modalFlocDesc" placeholder="Optional: Add details about this location..." style="min-height: 80px; font-size: 14px;"></textarea>
+                        <label>Description</label>
+                        <textarea id="modalFlocDesc" placeholder="Optional: Add details..."></textarea>
                     </div>
                     
                     <div class="form-group">
-                        <label style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; font-weight: 600;">Parent Location</label>
-                        <div style="margin-bottom: 8px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px; background: #f9fafb; border-radius: 8px; border: 2px solid #e5e7eb; transition: all 0.2s;">
-                                <input type="radio" name="parentType" value="none" checked onclick="toggleParentSelect(false)" style="cursor: pointer;">
-                                <div>
-                                    <div style="font-weight: 600; color: #374151; font-size: 14px;">🏠 Top Level Location</div>
-                                    <div style="font-size: 12px; color: #6b7280;">This will be a root location (no parent)</div>
+                        <label>Parent Location</label>
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="parentType" value="none" checked onclick="toggleParentSelect(false)">
+                                <div class="radio-content">
+                                    <div class="radio-title">🏠 Top Level Location</div>
+                                    <div class="radio-desc">This will be a root location</div>
                                 </div>
                             </label>
                         </div>
-                        <div style="margin-bottom: 8px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px; background: #f9fafb; border-radius: 8px; border: 2px solid #e5e7eb; transition: all 0.2s;">
-                                <input type="radio" name="parentType" value="child" onclick="toggleParentSelect(true)" style="cursor: pointer;">
-                                <div style="flex: 1;">
-                                    <div style="font-weight: 600; color: #374151; font-size: 14px;">📁 Sub-Location</div>
-                                    <div style="font-size: 12px; color: #6b7280;">Place this under an existing location</div>
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="parentType" value="child" onclick="toggleParentSelect(true)">
+                                <div class="radio-content">
+                                    <div class="radio-title">📁 Sub-Location</div>
+                                    <div class="radio-desc">Place under an existing location</div>
                                 </div>
                             </label>
                         </div>
-                        <div id="parentSelectContainer" style="display: none; margin-top: 12px; padding: 12px; background: #f0f9ff; border: 2px solid #bae6fd; border-radius: 8px;">
-                            <label style="font-size: 13px; color: #0369a1; font-weight: 600; margin-bottom: 8px; display: block;">Select Parent:</label>
-                            <select id="modalFlocParent" style="width: 100%; padding: 12px; border: 2px solid #bae6fd; border-radius: 6px; font-size: 14px;">
-                                <option value="">Choose a parent location...</option>
+                        <div id="parentSelectContainer" class="parent-select-container">
+                            <select id="modalFlocParent" class="parent-select">
+                                <option value="">Choose parent...</option>
                             </select>
                         </div>
                     </div>
                     
-                    <div id="locationPreview" style="display: none; margin-top: 20px; padding: 15px; background: #f0fdf4; border: 2px solid #86efac; border-radius: 8px;">
-                        <div style="font-size: 12px; color: #15803d; font-weight: 600; margin-bottom: 8px;">📍 LOCATION PREVIEW:</div>
-                        <div id="previewPath" style="font-size: 14px; color: #166534; font-weight: 500;"></div>
-                    </div>
-                    
-                    <div class="btn-group" style="margin-top: 30px; gap: 12px;">
-                        <button class="btn btn-primary" onclick="addLocationFromModal()" style="flex: 1; padding: 14px; font-size: 15px;">✓ Create Location</button>
-                        <button class="btn btn-secondary" onclick="closeAddLocationModal()" style="padding: 14px;">Cancel</button>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="addLocationFromModal()">✓ Create</button>
+                        <button class="btn btn-secondary" onclick="closeAddLocationModal()">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -261,18 +386,20 @@
     </div>
 
     <script>
-        const API_BASE = window.location.origin; // Uses current domain instead of localhost
+        const API_BASE = window.location.origin;
         let currentTasks = [];
         let currentFlocs = [];
         let currentLocations = [];
+        let currentUsers = [];
         let selectedTaskId = null;
         let selectedFlocId = null;
         let expandedTreeNodes = new Set();
         let currentAttachments = [];
         let currentUserData = null;
         let currentCalendarDate = new Date();
+        let notificationPanelOpen = false;
 
-        // Check authentication on load
+        // Check authentication
         async function checkAuth() {
             try {
                 const response = await fetch(`${API_BASE}/api/auth/me`, {
@@ -286,11 +413,11 @@
                 document.getElementById('currentUser').textContent = currentUserData.username;
                 document.getElementById('currentRole').textContent = currentUserData.role;
                 
-                // Show "Manage Users" button only for admins
                 if (currentUserData.role === 'admin') {
-                    document.getElementById('manageUsersBtn').style.display = 'block';
+                    document.getElementById('manageUsersBtn').classList.remove('hidden');
                 }
                 
+                updateNotificationBadge();
                 return true;
             } catch (error) {
                 console.error('Auth check failed:', error);
@@ -312,6 +439,99 @@
             }
         }
 
+        // Notification functions
+        async function updateNotificationBadge() {
+            const badge = document.getElementById('notificationBadge');
+            if (currentUserData.unread_notifications > 0) {
+                badge.textContent = currentUserData.unread_notifications;
+                badge.classList.add('show');
+            } else {
+                badge.classList.remove('show');
+            }
+        }
+
+        async function loadNotifications() {
+            try {
+                const response = await fetch(`${API_BASE}/api/notifications`, {
+                    credentials: 'include'
+                });
+                const notifications = await response.json();
+                
+                const listDiv = document.getElementById('notificationList');
+                if (notifications.length === 0) {
+                    listDiv.innerHTML = '<div class="notification-empty">No notifications</div>';
+                    return;
+                }
+                
+                listDiv.innerHTML = notifications.map(n => `
+                    <div class="notification-item ${!n.is_read ? 'unread' : ''}" onclick="handleNotificationClick(${n.id}, ${n.task_id})">
+                        <div class="notification-title">${n.title}</div>
+                        <div class="notification-message">${n.message}</div>
+                        <div class="notification-time">${formatRelativeTime(n.created_at)}</div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading notifications:', error);
+            }
+        }
+
+        async function handleNotificationClick(notifId, taskId) {
+            // Mark as read
+            await fetch(`${API_BASE}/api/notifications/${notifId}/read`, {
+                method: 'PUT',
+                credentials: 'include'
+            });
+            
+            // Refresh auth to update badge
+            await checkAuth();
+            
+            // Close panel
+            toggleNotifications();
+            
+            // Navigate to task if applicable
+            if (taskId) {
+                const task = currentTasks.find(t => t.id === taskId);
+                if (task) {
+                    editTaskFromDashboard(taskId);
+                }
+            }
+        }
+
+        async function markAllRead() {
+            await fetch(`${API_BASE}/api/notifications/mark-all-read`, {
+                method: 'PUT',
+                credentials: 'include'
+            });
+            await checkAuth();
+            await loadNotifications();
+        }
+
+        function toggleNotifications() {
+            notificationPanelOpen = !notificationPanelOpen;
+            const panel = document.getElementById('notificationPanel');
+            if (notificationPanelOpen) {
+                panel.classList.add('active');
+                loadNotifications();
+            } else {
+                panel.classList.remove('active');
+            }
+        }
+
+        function formatRelativeTime(isoString) {
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = now - date;
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+            
+            if (minutes < 1) return 'Just now';
+            if (minutes < 60) return `${minutes}m ago`;
+            if (hours < 24) return `${hours}h ago`;
+            if (days < 7) return `${days}d ago`;
+            return date.toLocaleDateString();
+        }
+
         // Page Navigation
         function showPage(pageId) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -325,26 +545,80 @@
                 refreshUsers();
             } else if (pageId === 'calendar') {
                 renderCalendar();
+            } else if (pageId === 'workload') {
+                loadWorkload();
             }
         }
 
         // Dashboard Functions
         async function loadDashboard() {
             try {
-                const [tasks, locations, flocs] = await Promise.all([
-                    fetch(`${API_BASE}/tasks`).then(r => r.json()),
-                    fetch(`${API_BASE}/locations`).then(r => r.json()),
-                    fetch(`${API_BASE}/funclocations`).then(r => r.json())
+                const [tasks, locations, flocs, users, stats] = await Promise.all([
+                    fetch(`${API_BASE}/tasks`, {credentials: 'include'}).then(r => r.json()),
+                    fetch(`${API_BASE}/locations`, {credentials: 'include'}).then(r => r.json()),
+                    fetch(`${API_BASE}/funclocations`, {credentials: 'include'}).then(r => r.json()),
+                    fetch(`${API_BASE}/api/users`, {credentials: 'include'}).then(r => r.json()),
+                    fetch(`${API_BASE}/api/dashboard/stats`, {credentials: 'include'}).then(r => r.json())
                 ]);
 
                 currentTasks = tasks;
                 currentFlocs = flocs;
                 currentLocations = locations;
+                currentUsers = users;
+
+                // Update stats
+                document.getElementById('statTotalTasks').textContent = stats.my_tasks.total;
+                document.getElementById('statOverdue').textContent = stats.my_tasks.overdue;
+                document.getElementById('statDueWeek').textContent = stats.my_tasks.due_this_week;
+                document.getElementById('statCompleted').textContent = stats.my_tasks.completed_this_month;
 
                 buildFlocTreeNav();
             } catch (error) {
                 console.error('Error loading dashboard:', error);
-                document.getElementById('flocTreeNav').innerHTML = '<div class="empty-state">Failed to load data</div>';
+            }
+        }
+
+        async function loadWorkload() {
+            try {
+                const response = await fetch(`${API_BASE}/api/workload`, {credentials: 'include'});
+                const workload = await response.json();
+                
+                const tbody = document.getElementById('workloadTableBody');
+                if (workload.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No users found</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = workload.map(w => {
+                    const workloadPercent = Math.min((w.total_tasks / 20) * 100, 100);
+                    const isHigh = w.total_tasks > 15;
+                    
+                    return `
+                        <tr>
+                            <td>
+                                <strong>${w.username}</strong><br>
+                                <span class="user-email">${w.email}</span>
+                            </td>
+                            <td><strong>${w.total_tasks}</strong></td>
+                            <td><span class="overdue-count">${w.overdue}</span></td>
+                            <td><span class="due-soon-count">${w.due_this_week}</span></td>
+                            <td>
+                                <div class="workload-bar">
+                                    <div class="workload-bar-fill ${isHigh ? 'high' : ''}" data-width="${workloadPercent}"></div>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                
+                // Apply widths after HTML is inserted
+                setTimeout(() => {
+                    document.querySelectorAll('.workload-bar-fill').forEach(el => {
+                        el.style.width = el.getAttribute('data-width') + '%';
+                    });
+                }, 0);
+            } catch (error) {
+                console.error('Error loading workload:', error);
             }
         }
 
@@ -356,7 +630,6 @@
                 return;
             }
 
-            // Build hierarchy
             const byId = {};
             currentFlocs.forEach(f => byId[f.id] = { ...f, children: [] });
 
@@ -369,7 +642,6 @@
                 }
             });
 
-            // Get all descendant tasks count recursively
             function getDescendantTaskCount(flocId) {
                 let count = currentTasks.filter(t => t.func_loc_id === flocId).length;
                 const children = currentFlocs.filter(f => f.parent_id === flocId);
@@ -387,8 +659,8 @@
                 
                 let html = `
                     <div class="${indent} tree-node" data-id="${node.id}">
-                        ${hasChildren ? `<span onclick="toggleTreeNode(${node.id}); event.stopPropagation();" style="cursor: pointer; margin-right: 5px; display: inline-block; width: 12px;">${isExpanded ? '▼' : '▶'}</span>` : '<span style="margin-right: 17px;"></span>'}
-                        <span onclick="selectFlocFromTree(${node.id})">${node.name} <span style="color: #9ca3af; font-size: 12px;">(${totalTasks})</span></span>
+                        ${hasChildren ? `<span onclick="toggleTreeNode(${node.id}); event.stopPropagation();" class="tree-toggle">${isExpanded ? '▼' : '▶'}</span>` : '<span class="tree-spacer"></span>'}
+                        <span onclick="selectFlocFromTree(${node.id})">${node.name} <span class="tree-task-count">(${totalTasks})</span></span>
                     </div>`;
                 
                 if (hasChildren && isExpanded) {
@@ -431,7 +703,6 @@
         function buildFlocDetailView(floc) {
             const viewDiv = document.getElementById('flocTaskView');
             
-            // Get all children recursively
             function getAllChildren(flocId) {
                 const children = [];
                 currentFlocs.forEach(f => {
@@ -444,138 +715,69 @@
             }
             
             const children = getAllChildren(floc.id);
-            
-            // Get all descendant IDs (including the current floc)
             const descendantIds = [floc.id, ...children.map(c => c.id)];
-            
-            // Get tasks for this location AND all its descendants
             const allTasks = currentTasks.filter(t => descendantIds.includes(t.func_loc_id));
             const directTasks = currentTasks.filter(t => t.func_loc_id === floc.id);
-            const childTasks = allTasks.filter(t => t.func_loc_id !== floc.id);
 
             let html = `
-                <div style="margin-bottom: 20px;">
-                    <h3 style="font-size: 22px; color: #1f2937; margin-bottom: 8px;">${floc.name}</h3>
-                    ${floc.description ? `<p style="color: #6b7280; margin-bottom: 15px;">${floc.description}</p>` : ''}
-                    ${floc.parent_id ? `<p style="color: #9ca3af; font-size: 13px;">Parent: ${currentFlocs.find(f => f.id === floc.parent_id)?.name || 'Unknown'}</p>` : ''}
-                    <p style="color: #667eea; font-size: 14px; font-weight: 600; margin-top: 10px;">
-                        Total Tasks: ${allTasks.length} ${allTasks.length !== directTasks.length ? `(${directTasks.length} direct, ${childTasks.length} from children)` : ''}
+                <div class="floc-detail-header">
+                    <h3 class="floc-detail-title">${floc.name}</h3>
+                    ${floc.description ? `<p class="floc-detail-desc">${floc.description}</p>` : ''}
+                    <p class="floc-detail-stats">
+                        Total Tasks: ${allTasks.length}
                     </p>
                 </div>
             `;
 
-            if (children.length > 0) {
-                html += `
-                    <div style="margin-bottom: 25px; padding: 15px; background: #f9fafb; border-radius: 8px;">
-                        <h4 style="font-size: 14px; color: #6b7280; margin-bottom: 10px;">CHILD LOCATIONS (${children.length})</h4>
-                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                            ${children.map(c => {
-                                const childTaskCount = currentTasks.filter(t => t.func_loc_id === c.id).length;
-                                return `
-                                    <span onclick="selectFlocFromTree(${c.id})" style="cursor: pointer; padding: 6px 12px; background: white; border-radius: 6px; font-size: 13px; border: 1px solid #e5e7eb; transition: all 0.2s;"
-                                    onmouseover="this.style.background='#ddd6fe'; this.style.borderColor='#c4b5fd';"
-                                    onmouseout="this.style.background='white'; this.style.borderColor='#e5e7eb';">
-                                        ${c.name} <span style="color: #9ca3af;">(${childTaskCount})</span>
-                                    </span>
-                                `;
-                            }).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-
             if (directTasks.length > 0) {
-                html += `
-                    <h4 style="font-size: 16px; color: #374151; margin-bottom: 15px;">Direct Tasks (${directTasks.length})</h4>
-                    <div class="task-list">
-                        ${directTasks.map(t => `
-                            <div class="task-item" onclick="editTaskFromDashboard(${t.id})">
-                                <div class="task-item-left">
-                                    <div class="task-name">${t.name}</div>
-                                    <div class="task-details">
-                                        📍 ${t.location}
-                                        ${t.part_name ? ` | 🔧 ${t.part_name}` : ''}
-                                        ${t.vendor ? ` | 🏪 ${t.vendor}` : ''}
-                                        ${t.attachments && t.attachments.length > 0 ? ` | 📎 ${t.attachments.length} file${t.attachments.length > 1 ? 's' : ''}` : ''}
-                                    </div>
-                                </div>
-                                <div class="task-item-right">
-                                    <div class="task-date">${t.next_run.split('T')[0]}</div>
-                                    <div class="task-freq">Every ${t.frequency_days} days</div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            }
-
-            if (childTasks.length > 0) {
-                // Group child tasks by their functional location
-                const tasksByFloc = {};
-                childTasks.forEach(t => {
-                    if (!tasksByFloc[t.func_loc_id]) {
-                        tasksByFloc[t.func_loc_id] = [];
-                    }
-                    tasksByFloc[t.func_loc_id].push(t);
-                });
-
-                html += `
-                    <h4 style="font-size: 16px; color: #374151; margin-top: 25px; margin-bottom: 15px;">Tasks from Child Locations (${childTasks.length})</h4>
-                `;
-
-                Object.keys(tasksByFloc).forEach(flocId => {
-                    const childFloc = currentFlocs.find(f => f.id === parseInt(flocId));
-                    const tasks = tasksByFloc[flocId];
-                    
-                    html += `
-                        <div style="margin-bottom: 20px;">
-                            <h5 style="font-size: 14px; color: #6b7280; margin-bottom: 10px; padding-left: 10px; border-left: 3px solid #667eea;">
-                                ${childFloc ? childFloc.name : 'Unknown Location'}
-                            </h5>
-                            <div class="task-list">
-                                ${tasks.map(t => `
-                                    <div class="task-item" onclick="editTaskFromDashboard(${t.id})" style="border-left-color: #a78bfa;">
-                                        <div class="task-item-left">
-                                            <div class="task-name">${t.name}</div>
-                                            <div class="task-details">
-                                                📍 ${t.location}
-                                                ${t.part_name ? ` | 🔧 ${t.part_name}` : ''}
-                                                ${t.vendor ? ` | 🏪 ${t.vendor}` : ''}
-                                                ${t.attachments && t.attachments.length > 0 ? ` | 📎 ${t.attachments.length} file${t.attachments.length > 1 ? 's' : ''}` : ''}
-                                            </div>
-                                        </div>
-                                        <div class="task-item-right">
-                                            <div class="task-date">${t.next_run.split('T')[0]}</div>
-                                            <div class="task-freq">Every ${t.frequency_days} days</div>
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                });
+                html += `<h4 class="task-section-title">Direct Tasks (${directTasks.length})</h4>`;
+                html += renderTaskList(directTasks);
             }
 
             if (allTasks.length === 0) {
-                html += '<div class="no-tasks">No tasks assigned to this location or its children</div>';
+                html += '<div class="no-tasks">No tasks assigned</div>';
             }
 
             viewDiv.innerHTML = html;
         }
 
-        function editTaskFromDashboard(taskId) {
+        function renderTaskList(tasks) {
+            return `<div class="task-list">
+                ${tasks.map(t => `
+                    <div class="task-item task-status-${t.status}" onclick="editTaskFromDashboard(${t.id})">
+                        <div class="task-item-left">
+                            <div class="task-name">
+                                ${t.name}
+                                <span class="status-badge status-${t.status}">${t.status.replace('_', ' ')}</span>
+                            </div>
+                            <div class="task-details">
+                                📍 ${t.location}
+                                ${t.assignee_name ? ` | 👤 ${t.assignee_name}` : ' | ⚠️ Unassigned'}
+                                ${t.part_name ? ` | 🔧 ${t.part_name}` : ''}
+                                ${t.completion_count > 0 ? ` | ✓ Completed ${t.completion_count}x` : ''}
+                            </div>
+                        </div>
+                        <div class="task-item-right">
+                            <div class="task-date">${t.next_run.split('T')[0]}</div>
+                            <div class="task-freq">Every ${t.frequency_days} days</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>`;
+        }
+
+        async function editTaskFromDashboard(taskId) {
             const task = currentTasks.find(t => t.id === taskId);
             if (!task) return;
 
             selectedTaskId = task.id;
             currentAttachments = task.attachments || [];
 
-            // Populate form
             document.getElementById('taskName').value = task.name;
             document.getElementById('taskFreq').value = task.frequency_days;
             document.getElementById('taskDate').value = task.next_run.split('T')[0];
+            document.getElementById('taskStatus').value = task.status;
             
-            // Update dropdowns
             const locSelect = document.getElementById('taskLocation');
             locSelect.innerHTML = '<option value="">Select location...</option>' +
                 currentLocations.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
@@ -586,28 +788,61 @@
             const flocSelect = document.getElementById('taskFuncLoc');
             flocSelect.innerHTML = '<option value="">Select functional location...</option>' +
                 currentFlocs.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
-            
-            if (task.func_loc_id) {
-                flocSelect.value = task.func_loc_id;
-            }
+            if (task.func_loc_id) flocSelect.value = task.func_loc_id;
+
+            const assigneeSelect = document.getElementById('taskAssignee');
+            assigneeSelect.innerHTML = '<option value="">Unassigned</option>' +
+                currentUsers.filter(u => u.is_active).map(u => `<option value="${u.id}">${u.username} (${u.role})</option>`).join('');
+            if (task.assigned_to) assigneeSelect.value = task.assigned_to;
 
             document.getElementById('taskPart').value = task.part_name || '';
             document.getElementById('taskLead').value = task.lead_time_days || '';
             document.getElementById('taskVendor').value = task.vendor || '';
             document.getElementById('taskVendorPN').value = task.vendor_part_number || '';
 
-            // Display attachments
             displayAttachments();
+            await loadCompletionHistory(taskId);
 
-            // Show tasks page
             showPage('tasks');
+        }
+
+        async function loadCompletionHistory(taskId) {
+            try {
+                const response = await fetch(`${API_BASE}/tasks/${taskId}/completions`, {
+                    credentials: 'include'
+                });
+                const completions = await response.json();
+                
+                const historyDiv = document.getElementById('completionHistory');
+                if (completions.length === 0) {
+                    historyDiv.innerHTML = '<p class="empty-state-text">No completions yet</p>';
+                    return;
+                }
+                
+                historyDiv.innerHTML = completions.map(c => `
+                    <div class="completion-history-item">
+                        <div class="completion-header">
+                            <strong>${c.status === 'completed' ? '✓' : '⊘'} ${c.status}</strong>
+                            <span class="completion-date">${new Date(c.completed_at).toLocaleString()}</span>
+                        </div>
+                        <div class="completion-detail">
+                            Completed by: <strong>${c.completed_by}</strong>
+                        </div>
+                        ${c.duration_minutes ? `<div class="completion-detail">Duration: ${c.duration_minutes} minutes</div>` : ''}
+                        ${c.labor_hours ? `<div class="completion-detail">Labor: ${c.labor_hours} hours</div>` : ''}
+                        ${c.notes ? `<div class="completion-notes">"${c.notes}"</div>` : ''}
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading completion history:', error);
+            }
         }
 
         function displayAttachments() {
             const listDiv = document.getElementById('attachmentsList');
             
             if (currentAttachments.length === 0) {
-                listDiv.innerHTML = '<p style="color: #9ca3af; font-size: 13px; font-style: italic;">No attachments yet</p>';
+                listDiv.innerHTML = '<p class="empty-state-text">No attachments</p>';
                 return;
             }
 
@@ -627,7 +862,7 @@
                     </div>
                     <div class="attachment-actions">
                         <button class="btn btn-icon" onclick="downloadAttachment(${att.id})">⬇ Download</button>
-                        <button class="btn btn-icon" onclick="deleteAttachment(${att.id})" style="color: #ef4444; border-color: #fecaca;">🗑 Delete</button>
+                        <button class="btn btn-icon" onclick="deleteAttachment(${att.id})">🗑 Delete</button>
                     </div>
                 </div>
             `).join('');
@@ -638,7 +873,7 @@
             const file = fileInput.files[0];
 
             if (!file) {
-                alert('Please select a file first');
+                alert('Please select a file');
                 return;
             }
 
@@ -653,21 +888,20 @@
             try {
                 const response = await fetch(`${API_BASE}/tasks/${selectedTaskId}/attachments`, {
                     method: 'POST',
+                    credentials: 'include',
                     body: formData
                 });
 
-                if (!response.ok) {
-                    throw new Error('Upload failed');
-                }
+                if (!response.ok) throw new Error('Upload failed');
 
                 const attachment = await response.json();
                 currentAttachments.push(attachment);
                 displayAttachments();
                 fileInput.value = '';
-                alert('File uploaded successfully!');
+                alert('File uploaded!');
             } catch (error) {
-                console.error('Error uploading file:', error);
-                alert('Failed to upload file');
+                console.error('Error uploading:', error);
+                alert('Failed to upload');
             }
         }
 
@@ -679,27 +913,85 @@
             if (!confirm('Delete this attachment?')) return;
 
             try {
-                await fetch(`${API_BASE}/attachments/${attachmentId}`, { method: 'DELETE' });
+                await fetch(`${API_BASE}/attachments/${attachmentId}`, { 
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
                 currentAttachments = currentAttachments.filter(a => a.id !== attachmentId);
                 displayAttachments();
-                alert('Attachment deleted');
             } catch (error) {
-                console.error('Error deleting attachment:', error);
-                alert('Failed to delete attachment');
+                console.error('Error deleting:', error);
+                alert('Failed to delete');
+            }
+        }
+
+        function completeTaskPrompt() {
+            const task = currentTasks.find(t => t.id === selectedTaskId);
+            if (!task) return;
+            
+            document.getElementById('completeTaskName').textContent = task.name;
+            document.getElementById('completeTaskModal').classList.add('active');
+        }
+
+        function closeCompleteModal() {
+            document.getElementById('completeTaskModal').classList.remove('active');
+            document.getElementById('completionNotes').value = '';
+            document.getElementById('completionDuration').value = '';
+            document.getElementById('completionLabor').value = '';
+            document.getElementById('completionParts').value = '';
+            document.getElementById('completionStatus').value = 'completed';
+        }
+
+        async function submitCompletion() {
+            if (!selectedTaskId) return;
+
+            const data = {
+                status: document.getElementById('completionStatus').value,
+                notes: document.getElementById('completionNotes').value || null,
+                duration_minutes: parseInt(document.getElementById('completionDuration').value) || null,
+                labor_hours: parseFloat(document.getElementById('completionLabor').value) || null,
+                parts_used: document.getElementById('completionParts').value || null
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/tasks/${selectedTaskId}/complete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) throw new Error('Completion failed');
+
+                await loadDashboard();
+                closeCompleteModal();
+                alert('Task completed successfully!');
+                showPage('dashboard');
+            } catch (error) {
+                console.error('Error completing task:', error);
+                alert('Failed to complete task');
             }
         }
 
         async function updateTask() {
             if (!selectedTaskId) return;
 
-            const name = document.getElementById('taskName').value.trim();
-            const freq = parseInt(document.getElementById('taskFreq').value);
-            const date = document.getElementById('taskDate').value;
-            const locId = document.getElementById('taskLocation').value;
-            const flocId = document.getElementById('taskFuncLoc').value || null;
+            const data = {
+                name: document.getElementById('taskName').value.trim(),
+                frequency_days: parseInt(document.getElementById('taskFreq').value),
+                next_run: document.getElementById('taskDate').value,
+                location_id: parseInt(document.getElementById('taskLocation').value),
+                func_loc_id: document.getElementById('taskFuncLoc').value || null,
+                assigned_to: document.getElementById('taskAssignee').value || null,
+                status: document.getElementById('taskStatus').value,
+                part_name: document.getElementById('taskPart').value || '',
+                vendor: document.getElementById('taskVendor').value || '',
+                vendor_part_number: document.getElementById('taskVendorPN').value || '',
+                lead_time_days: parseInt(document.getElementById('taskLead').value) || 0
+            };
 
-            if (!name || !freq || !date || !locId) {
-                alert('Please fill in name, frequency, date, and location');
+            if (!data.name || !data.frequency_days || !data.next_run || !data.location_id) {
+                alert('Please fill required fields');
                 return;
             }
 
@@ -707,25 +999,16 @@
                 await fetch(`${API_BASE}/tasks/${selectedTaskId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name,
-                        frequency_days: freq,
-                        next_run: date,
-                        location_id: parseInt(locId),
-                        func_loc_id: flocId ? parseInt(flocId) : null,
-                        part_name: document.getElementById('taskPart').value || '',
-                        vendor: document.getElementById('taskVendor').value || '',
-                        vendor_part_number: document.getElementById('taskVendorPN').value || '',
-                        lead_time_days: parseInt(document.getElementById('taskLead').value) || 0
-                    })
+                    credentials: 'include',
+                    body: JSON.stringify(data)
                 });
 
                 await loadDashboard();
-                alert('Task updated successfully!');
+                alert('Task updated!');
                 showPage('dashboard');
             } catch (error) {
-                console.error('Error updating task:', error);
-                alert('Failed to update task');
+                console.error('Error updating:', error);
+                alert('Failed to update');
             }
         }
 
@@ -733,26 +1016,27 @@
             if (!selectedTaskId || !confirm('Delete this task?')) return;
 
             try {
-                await fetch(`${API_BASE}/tasks/${selectedTaskId}`, { method: 'DELETE' });
+                await fetch(`${API_BASE}/tasks/${selectedTaskId}`, { 
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
                 await loadDashboard();
-                alert('Task deleted successfully!');
+                alert('Task deleted!');
                 showPage('dashboard');
             } catch (error) {
-                console.error('Error deleting task:', error);
-                alert('Failed to delete task');
+                console.error('Error deleting:', error);
+                alert('Failed to delete');
             }
         }
 
-        // Functional Locations Functions
         async function refreshFlocs() {
             try {
-                const flocs = await fetch(`${API_BASE}/funclocations`).then(r => r.json());
+                const flocs = await fetch(`${API_BASE}/funclocations`, {credentials: 'include'}).then(r => r.json());
                 currentFlocs = flocs;
-
                 buildFlocTree(flocs);
                 updateFlocDropdowns();
             } catch (error) {
-                console.error('Error refreshing functional locations:', error);
+                console.error('Error refreshing:', error);
             }
         }
 
@@ -771,7 +1055,7 @@
 
             const treeDiv = document.getElementById('flocTree');
             if (roots.length === 0) {
-                treeDiv.innerHTML = '<div class="empty-state">No functional locations yet. Add one below!</div>';
+                treeDiv.innerHTML = '<div class="empty-state">No locations yet</div>';
                 return;
             }
 
@@ -830,12 +1114,14 @@
         async function saveFloc() {
             if (!selectedFlocId) return;
 
-            const name = document.getElementById('editFlocName').value.trim();
-            const desc = document.getElementById('editFlocDesc').value || null;
-            const parentId = document.getElementById('editFlocParent').value || null;
+            const data = {
+                name: document.getElementById('editFlocName').value.trim(),
+                description: document.getElementById('editFlocDesc').value || null,
+                parent_id: document.getElementById('editFlocParent').value || null
+            };
 
-            if (!name) {
-                alert('Name cannot be empty');
+            if (!data.name) {
+                alert('Name required');
                 return;
             }
 
@@ -843,50 +1129,52 @@
                 await fetch(`${API_BASE}/funclocations/${selectedFlocId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name,
-                        description: desc,
-                        parent_id: parentId ? parseInt(parentId) : null
-                    })
+                    credentials: 'include',
+                    body: JSON.stringify(data)
                 });
 
                 await refreshFlocs();
                 await loadDashboard();
-                alert('Saved successfully!');
+                alert('Saved!');
             } catch (error) {
-                console.error('Error saving functional location:', error);
-                alert('Failed to save: ' + error.message);
+                console.error('Error saving:', error);
+                alert('Failed to save');
             }
         }
 
         async function deleteFloc() {
-            if (!selectedFlocId || !confirm('Delete this functional location? You must first reparent/delete any children and move/delete any tasks.')) return;
+            if (!selectedFlocId || !confirm('Delete this location?')) return;
 
             try {
-                const response = await fetch(`${API_BASE}/funclocations/${selectedFlocId}`, { method: 'DELETE' });
+                const response = await fetch(`${API_BASE}/funclocations/${selectedFlocId}`, { 
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
                 if (!response.ok) {
                     const data = await response.json();
-                    alert('Failed to delete: ' + data.message);
+                    alert('Failed: ' + data.message);
                     return;
                 }
 
                 selectedFlocId = null;
                 await refreshFlocs();
                 await loadDashboard();
-                document.getElementById('flocEditSection').innerHTML = '<p style="color: #9ca3af; text-align: center; padding: 20px;">Select a functional location from the tree</p>';
+                document.getElementById('flocEditSection').innerHTML = '<p class="empty-state-text">Select a location</p>';
             } catch (error) {
-                console.error('Error deleting functional location:', error);
+                console.error('Error deleting:', error);
                 alert('Failed to delete');
             }
         }
 
         async function addFloc() {
-            const name = document.getElementById('newFlocName').value.trim();
-            const desc = document.getElementById('newFlocDesc').value || null;
-            const parentId = document.getElementById('newFlocParent').value || null;
+            const data = {
+                name: document.getElementById('newFlocName').value.trim(),
+                description: document.getElementById('newFlocDesc').value || null,
+                parent_id: document.getElementById('newFlocParent').value || null
+            };
 
-            if (!name) {
-                alert('Please enter a name');
+            if (!data.name) {
+                alert('Name required');
                 return;
             }
 
@@ -894,11 +1182,8 @@
                 await fetch(`${API_BASE}/funclocations`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name,
-                        description: desc,
-                        parent_id: parentId ? parseInt(parentId) : null
-                    })
+                    credentials: 'include',
+                    body: JSON.stringify(data)
                 });
 
                 document.getElementById('newFlocName').value = '';
@@ -907,12 +1192,11 @@
                 await refreshFlocs();
                 await loadDashboard();
             } catch (error) {
-                console.error('Error adding functional location:', error);
-                alert('Failed to add functional location');
+                console.error('Error adding:', error);
+                alert('Failed to add');
             }
         }
 
-        // User Management Functions
         async function refreshUsers() {
             if (currentUserData.role !== 'admin') {
                 alert('Admin access required');
@@ -921,14 +1205,11 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE}/api/users`, {
-                    credentials: 'include'
-                });
-                const users = await response.json();
+                const users = await fetch(`${API_BASE}/api/users`, {credentials: 'include'}).then(r => r.json());
 
                 const tbody = document.getElementById('usersTableBody');
                 if (users.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No users found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No users</td></tr>';
                 } else {
                     tbody.innerHTML = users.map(u => `
                         <tr>
@@ -942,17 +1223,22 @@
                                 </select>
                             </td>
                             <td>
-                                <span style="color: ${u.is_active ? '#10b981' : '#ef4444'};">
+                                <span class="user-status ${u.is_active ? 'active' : 'inactive'}">
                                     ${u.is_active ? '✓ Active' : '✗ Disabled'}
                                 </span>
                             </td>
-                            <td>${new Date(u.created_at).toLocaleDateString()}</td>
+                            <td class="notification-prefs">
+                                ${u.notify_assigned ? '✓ Assigned' : ''} 
+                                ${u.notify_due_soon ? '✓ Due Soon' : ''} 
+                                ${u.notify_overdue ? '✓ Overdue' : ''}
+                                <br><small>${u.notification_days_ahead} days ahead</small>
+                            </td>
                             <td>
                                 ${u.username !== 'admin' ? `
                                     <button class="btn btn-secondary btn-small" onclick="toggleUserStatus(${u.id}, ${!u.is_active})">
                                         ${u.is_active ? 'Disable' : 'Enable'}
                                     </button>
-                                ` : '<span style="color: #9ca3af;">Protected</span>'}
+                                ` : '<span class="protected-user">Protected</span>'}
                             </td>
                         </tr>
                     `).join('');
@@ -964,8 +1250,8 @@
         }
 
         async function updateUserRole(userId, newRole) {
-            if (!confirm(`Change this user's role to ${newRole}?`)) {
-                refreshUsers(); // Reset dropdown
+            if (!confirm(`Change role to ${newRole}?`)) {
+                refreshUsers();
                 return;
             }
 
@@ -976,20 +1262,18 @@
                     credentials: 'include',
                     body: JSON.stringify({ role: newRole })
                 });
-                alert('User role updated');
+                alert('Role updated');
                 refreshUsers();
             } catch (error) {
-                console.error('Error updating user:', error);
-                alert('Failed to update user role');
+                console.error('Error updating:', error);
+                alert('Failed to update');
                 refreshUsers();
             }
         }
 
         async function toggleUserStatus(userId, newStatus) {
             const action = newStatus ? 'enable' : 'disable';
-            if (!confirm(`Are you sure you want to ${action} this user?`)) {
-                return;
-            }
+            if (!confirm(`${action} this user?`)) return;
 
             try {
                 await fetch(`${API_BASE}/api/users/${userId}`, {
@@ -998,15 +1282,14 @@
                     credentials: 'include',
                     body: JSON.stringify({ is_active: newStatus })
                 });
-                alert(`User ${action}d successfully`);
+                alert(`User ${action}d`);
                 refreshUsers();
             } catch (error) {
-                console.error('Error updating user status:', error);
-                alert('Failed to update user status');
+                console.error('Error updating:', error);
+                alert('Failed to update');
             }
         }
 
-        // Calendar Functions
         function changeMonth(delta) {
             currentCalendarDate.setMonth(currentCalendarDate.getMonth() + delta);
             renderCalendar();
@@ -1016,67 +1299,55 @@
             const year = currentCalendarDate.getFullYear();
             const month = currentCalendarDate.getMonth();
             
-            // Update month display
             const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December'];
             document.getElementById('calendarMonth').textContent = `${monthNames[month]} ${year}`;
             
-            // Get first day of month and number of days
             const firstDay = new Date(year, month, 1);
             const lastDay = new Date(year, month + 1, 0);
             const daysInMonth = lastDay.getDate();
             const startingDayOfWeek = firstDay.getDay();
             
-            // Get days from previous month
             const prevMonthLastDay = new Date(year, month, 0).getDate();
             const prevMonthDays = startingDayOfWeek;
             
-            // Calculate total cells needed
             const totalCells = Math.ceil((daysInMonth + startingDayOfWeek) / 7) * 7;
             const nextMonthDays = totalCells - daysInMonth - prevMonthDays;
             
-            // Today
             const today = new Date();
             const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
             const todayDate = today.getDate();
             
             let html = '<div class="calendar-grid">';
             
-            // Headers
             const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             dayNames.forEach(day => {
                 html += `<div class="calendar-header">${day}</div>`;
             });
             
-            // Previous month days
             for (let i = prevMonthDays - 1; i >= 0; i--) {
                 const day = prevMonthLastDay - i;
                 html += `<div class="calendar-day other-month"><div class="calendar-day-number">${day}</div></div>`;
             }
             
-            // Current month days
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(year, month, day);
                 const dateStr = date.toISOString().split('T')[0];
                 const isToday = isCurrentMonth && day === todayDate;
                 
-                // Get tasks for this day
                 const dayTasks = currentTasks.filter(t => t.next_run.split('T')[0] === dateStr);
                 
                 html += `<div class="calendar-day ${isToday ? 'today' : ''}">`;
                 html += `<div class="calendar-day-number">${day}</div>`;
                 
-                // Add tasks
                 dayTasks.forEach(task => {
-                    const taskDate = new Date(task.next_run);
-                    const isOverdue = taskDate < today && dateStr !== today.toISOString().split('T')[0];
-                    html += `<div class="calendar-task ${isOverdue ? 'overdue' : ''}" onclick="editTaskFromCalendar(${task.id})" title="${task.name} - ${task.location}">${task.name}</div>`;
+                    const isOverdue = task.status === 'overdue';
+                    html += `<div class="calendar-task ${isOverdue ? 'overdue' : ''}" onclick="editTaskFromDashboard(${task.id})" title="${task.name} - ${task.location}">${task.name}</div>`;
                 });
                 
                 html += '</div>';
             }
             
-            // Next month days
             for (let day = 1; day <= nextMonthDays; day++) {
                 html += `<div class="calendar-day other-month"><div class="calendar-day-number">${day}</div></div>`;
             }
@@ -1086,71 +1357,41 @@
             document.getElementById('calendarView').innerHTML = html;
         }
 
-        function editTaskFromCalendar(taskId) {
-            editTaskFromDashboard(taskId);
-        }
-
-        // Add Location Modal Functions
         function showAddLocationModal() {
-            // Populate parent dropdown
             const parentSelect = document.getElementById('modalFlocParent');
-            parentSelect.innerHTML = '<option value="">Choose a parent location...</option>' +
+            parentSelect.innerHTML = '<option value="">Choose parent...</option>' +
                 currentFlocs.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
             
-            // Clear form
             document.getElementById('modalFlocName').value = '';
             document.getElementById('modalFlocDesc').value = '';
-            document.querySelector('input[name="parentType"][value="none"]').checked = true;
-            document.getElementById('parentSelectContainer').style.display = 'none';
-            document.getElementById('locationPreview').style.display = 'none';
             
-            // Add event listeners for live preview
-            document.getElementById('modalFlocName').addEventListener('input', updateLocationPreview);
-            document.getElementById('modalFlocParent').addEventListener('change', updateLocationPreview);
+            if (selectedFlocId) {
+                document.querySelector('input[name="parentType"][value="child"]').checked = true;
+                document.getElementById('parentSelectContainer').classList.add('show');
+                document.getElementById('modalFlocParent').value = selectedFlocId;
+            } else {
+                document.querySelector('input[name="parentType"][value="none"]').checked = true;
+                document.getElementById('parentSelectContainer').classList.remove('show');
+            }
             
-            // Show modal
-            document.getElementById('addLocationModal').style.display = 'flex';
+            document.getElementById('addLocationModal').classList.add('show');
         }
 
         function toggleParentSelect(show) {
-            document.getElementById('parentSelectContainer').style.display = show ? 'block' : 'none';
-            updateLocationPreview();
-        }
-
-        function updateLocationPreview() {
-            const name = document.getElementById('modalFlocName').value.trim();
-            const isChild = document.querySelector('input[name="parentType"][value="child"]').checked;
-            const parentId = document.getElementById('modalFlocParent').value;
-            
-            if (!name) {
-                document.getElementById('locationPreview').style.display = 'none';
-                return;
-            }
-            
-            let path = '';
-            if (isChild && parentId) {
-                const parent = currentFlocs.find(f => f.id == parentId);
-                if (parent) {
-                    // Build full path
-                    const getFullPath = (loc) => {
-                        if (loc.parent_id) {
-                            const p = currentFlocs.find(f => f.id === loc.parent_id);
-                            if (p) return getFullPath(p) + ' → ' + loc.name;
-                        }
-                        return loc.name;
-                    };
-                    path = getFullPath(parent) + ' → ' + name;
-                }
+            const container = document.getElementById('parentSelectContainer');
+            if (show) {
+                container.classList.add('show');
             } else {
-                path = name;
+                container.classList.remove('show');
             }
             
-            document.getElementById('previewPath').textContent = path;
-            document.getElementById('locationPreview').style.display = 'block';
+            if (!show) {
+                document.getElementById('modalFlocParent').value = '';
+            }
         }
 
         function closeAddLocationModal() {
-            document.getElementById('addLocationModal').style.display = 'none';
+            document.getElementById('addLocationModal').classList.remove('show');
             document.getElementById('modalFlocName').removeEventListener('input', updateLocationPreview);
             document.getElementById('modalFlocParent').removeEventListener('change', updateLocationPreview);
         }
@@ -1162,17 +1403,17 @@
             const parentId = isChild ? document.getElementById('modalFlocParent').value : null;
 
             if (!name) {
-                alert('Please enter a location name');
+                alert('Name required');
                 return;
             }
             
             if (isChild && !parentId) {
-                alert('Please select a parent location');
+                alert('Select parent');
                 return;
             }
 
             try {
-                await fetch('/funclocations', {
+                await fetch(`${API_BASE}/funclocations`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
@@ -1185,21 +1426,32 @@
 
                 closeAddLocationModal();
                 await loadDashboard();
-                
-                // Show success message
-                const preview = document.getElementById('previewPath').textContent;
-                alert(`✓ Location created successfully!\n\n${preview}`);
+                alert('Location created!');
             } catch (error) {
-                console.error('Error adding functional location:', error);
-                alert('Failed to add functional location. Please try again.');
+                console.error('Error adding:', error);
+                alert('Failed to add');
             }
         }
 
-        // Initialize on load
         document.addEventListener('DOMContentLoaded', async () => {
             const isAuthenticated = await checkAuth();
             if (isAuthenticated) {
                 loadDashboard();
+                
+                setInterval(() => {
+                    checkAuth();
+                    if (notificationPanelOpen) {
+                        loadNotifications();
+                    }
+                }, 300000);
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            const panel = document.getElementById('notificationPanel');
+            const bell = document.querySelector('.notification-bell');
+            if (notificationPanelOpen && !panel.contains(e.target) && !bell.contains(e.target)) {
+                toggleNotifications();
             }
         });
     </script>
