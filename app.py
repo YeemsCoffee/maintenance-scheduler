@@ -352,9 +352,6 @@ def get_users():
         'role': u.role,
         'is_active': u.is_active,
         'created_at': u.created_at.isoformat(),
-        'notify_assigned': u.notify_assigned,
-        'notify_due_soon': u.notify_due_soon,
-        'notify_overdue': u.notify_overdue,
         'notification_days_ahead': u.notification_days_ahead
     } for u in users])
 
