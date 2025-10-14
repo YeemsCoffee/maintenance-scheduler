@@ -82,10 +82,8 @@ class MaintenanceTask(db.Model):
     lead_time_days = db.Column(db.Integer)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     func_loc_id = db.Column(db.Integer, db.ForeignKey('functional_locations.id'))
-    
-    # New fields
     assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    status = db.Column(db.String(20), default='pending')  # pending, in_progress, completed, overdue
+    status = db.Column(db.String(20), default='pending')
     last_completed = db.Column(db.DateTime, nullable=True)
     
     attachments = db.relationship('TaskAttachment', backref='task', lazy=True, cascade='all, delete-orphan')
@@ -121,9 +119,9 @@ class TaskCompletion(db.Model):
     actual_date = db.Column(db.DateTime, nullable=False)
     notes = db.Column(db.Text)
     duration_minutes = db.Column(db.Integer)
-    parts_used = db.Column(db.Text)  # JSON string of parts used
+    parts_used = db.Column(db.Text)
     labor_hours = db.Column(db.Float)
-    status = db.Column(db.String(20), default='completed')  # completed, skipped
+    status = db.Column(db.String(20), default='completed')
 
 class TaskAttachment(db.Model):
     __tablename__ = 'task_attachments'
@@ -141,10 +139,9 @@ class Notification(db.Model):
     task_id = db.Column(db.Integer, db.ForeignKey('maintenance_tasks.id'), nullable=True)
     title = db.Column(db.String(200), nullable=False)
     message = db.Column(db.Text, nullable=False)
-    type = db.Column(db.String(50))  # assigned, due_soon, overdue, completed
+    type = db.Column(db.String(50))
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    email_sent = db.Column(db.Boolean, default=False)
 
 def login_required(f):
     @wraps(f)
@@ -188,13 +185,6 @@ def create_notification(user_id, task_id, title, message, notif_type):
     )
     db.session.add(notification)
     db.session.commit()
-    
-    # Send email if user preferences allow
-    user = User.query.get(user_id)
-    if user and should_send_email(user, notif_type):
-        send_email_notification(user, title, message)
-        notification.email_sent = True
-        db.session.commit()
 
 def run_maintenance_task(task_id):
     with app.app_context():
@@ -250,6 +240,7 @@ def check_upcoming_tasks():
                         f"The maintenance task '{task.name}' at {task.location.name} is due in {days_until} day(s).",
                         'due_soon'
                     )
+
 # Authentication routes
 @app.route('/api/auth/register', methods=['POST'])
 def register():
@@ -822,4 +813,4 @@ scheduler.add_job(
 scheduler.start()
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
