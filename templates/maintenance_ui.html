@@ -19,6 +19,7 @@
                         🔔
                         <span id="notificationBadge" class="notification-badge">0</span>
                     </div>
+                    <button class="btn btn-secondary btn-small" onclick="showExportMenu()">📊 Export</button>
                     <button class="btn btn-secondary btn-small" onclick="showPage('workload')" id="workloadBtn">👥 Workload</button>
                     <button class="btn btn-secondary btn-small" onclick="showPage('calendar')">📅 Calendar</button>
                     <button class="btn btn-secondary btn-small hidden" onclick="showPage('users')" id="manageUsersBtn">Manage Users</button>
@@ -37,6 +38,17 @@
                 <div class="notification-empty">
                     No notifications
                 </div>
+            </div>
+        </div>
+
+        <!-- Export Menu -->
+        <div id="exportMenu" class="export-menu">
+            <div class="export-menu-content">
+                <h3>Export Data</h3>
+                <button class="btn btn-primary" onclick="exportTasks()">📋 Export All Tasks</button>
+                <button class="btn btn-primary" onclick="exportCompletionHistory()">✓ Export Completion History</button>
+                <button class="btn btn-primary" onclick="exportWorkload()">👥 Export Workload Report</button>
+                <button class="btn btn-secondary" onclick="closeExportMenu()">Cancel</button>
             </div>
         </div>
 
@@ -544,29 +556,45 @@
         async function loadDashboard() {
             try {
                 const [tasks, locations, flocs, users, stats] = await Promise.all([
-                    fetch(`${API_BASE}/tasks`, {credentials: 'include'}).then(r => r.json()),
-                    fetch(`${API_BASE}/locations`, {credentials: 'include'}).then(r => r.json()),
-                    fetch(`${API_BASE}/funclocations`, {credentials: 'include'}).then(r => r.json()),
-                    fetch(`${API_BASE}/api/users`, {credentials: 'include'}).then(r => r.json()),
-                    fetch(`${API_BASE}/api/dashboard/stats`, {credentials: 'include'}).then(r => r.json())
+                    fetch(`${API_BASE}/tasks`, {credentials: 'include'}).then(r => {
+                        if (!r.ok) throw new Error('Failed to load tasks');
+                        return r.json();
+                    }),
+                    fetch(`${API_BASE}/locations`, {credentials: 'include'}).then(r => {
+                        if (!r.ok) throw new Error('Failed to load locations');
+                        return r.json();
+                    }),
+                    fetch(`${API_BASE}/funclocations`, {credentials: 'include'}).then(r => {
+                        if (!r.ok) throw new Error('Failed to load functional locations');
+                        return r.json();
+                    }),
+                    fetch(`${API_BASE}/api/users`, {credentials: 'include'}).then(r => {
+                        if (!r.ok) throw new Error('Failed to load users');
+                        return r.json();
+                    }),
+                    fetch(`${API_BASE}/api/dashboard/stats`, {credentials: 'include'}).then(r => {
+                        if (!r.ok) throw new Error('Failed to load stats');
+                        return r.json();
+                    })
                 ]);
 
-                currentTasks = tasks;
-                currentFlocs = flocs;
-                currentLocations = locations;
-                currentUsers = users;
+                currentTasks = tasks || [];
+                currentFlocs = flocs || [];
+                currentLocations = locations || [];
+                currentUsers = users || [];
 
-                document.getElementById('statTotalTasks').textContent = stats.my_tasks.total;
-                document.getElementById('statOverdue').textContent = stats.my_tasks.overdue;
-                document.getElementById('statDueWeek').textContent = stats.my_tasks.due_this_week;
-                document.getElementById('statCompleted').textContent = stats.my_tasks.completed_this_month;
+                // Update stats
+                document.getElementById('statTotalTasks').textContent = stats.my_tasks.total || 0;
+                document.getElementById('statOverdue').textContent = stats.my_tasks.overdue || 0;
+                document.getElementById('statDueWeek').textContent = stats.my_tasks.due_this_week || 0;
+                document.getElementById('statCompleted').textContent = stats.my_tasks.completed_this_month || 0;
 
                 buildFlocTreeNav();
             } catch (error) {
                 console.error('Error loading dashboard:', error);
+                alert('Failed to load dashboard data. Please refresh the page.');
             }
         }
-
         async function loadWorkload() {
             try {
                 const response = await fetch(`${API_BASE}/api/workload`, {credentials: 'include'});
@@ -672,7 +700,10 @@
             buildFlocTreeNav();
         }
 
-        function selectFlocFromTree(id) {
+       function selectFlocFromTree(id) {
+            // Update selectedFlocId when clicking on tree nodes
+            selectedFlocId = id;
+            
             document.querySelectorAll('#flocTreeNav .tree-node').forEach(n => {
                 const nodeId = n.getAttribute('data-id');
                 if (nodeId == id) {
@@ -687,6 +718,7 @@
 
             buildFlocDetailView(floc);
         }
+
 
         function buildFlocDetailView(floc) {
             const viewDiv = document.getElementById('flocTaskView');
@@ -754,46 +786,54 @@
             </div>`;
         }
 
+        // Add this to handle task editing errors
         async function editTaskFromDashboard(taskId) {
-            const task = currentTasks.find(t => t.id === taskId);
-            if (!task) return;
+            try {
+                const task = currentTasks.find(t => t.id === taskId);
+                if (!task) {
+                    alert('Task not found');
+                    return;
+                }
 
-            selectedTaskId = task.id;
-            currentAttachments = task.attachments || [];
+                selectedTaskId = task.id;
+                currentAttachments = task.attachments || [];
 
-            document.getElementById('taskName').value = task.name;
-            document.getElementById('taskFreq').value = task.frequency_days;
-            document.getElementById('taskDate').value = task.next_run.split('T')[0];
-            document.getElementById('taskStatus').value = task.status;
-            
-            const locSelect = document.getElementById('taskLocation');
-            locSelect.innerHTML = '<option value="">Select location...</option>' +
-                currentLocations.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
-            
-            const locOpt = Array.from(locSelect.options).find(opt => opt.text === task.location);
-            if (locOpt) locSelect.value = locOpt.value;
+                document.getElementById('taskName').value = task.name || '';
+                document.getElementById('taskFreq').value = task.frequency_days || '';
+                document.getElementById('taskDate').value = task.next_run ? task.next_run.split('T')[0] : '';
+                document.getElementById('taskStatus').value = task.status || 'pending';
+                
+                const locSelect = document.getElementById('taskLocation');
+                locSelect.innerHTML = '<option value="">Select location...</option>' +
+                    currentLocations.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+                
+                const locOpt = Array.from(locSelect.options).find(opt => opt.text === task.location);
+                if (locOpt) locSelect.value = locOpt.value;
 
-            const flocSelect = document.getElementById('taskFuncLoc');
-            flocSelect.innerHTML = '<option value="">Select functional location...</option>' +
-                currentFlocs.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
-            if (task.func_loc_id) flocSelect.value = task.func_loc_id;
+                const flocSelect = document.getElementById('taskFuncLoc');
+                flocSelect.innerHTML = '<option value="">Select functional location...</option>' +
+                    currentFlocs.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+                if (task.func_loc_id) flocSelect.value = task.func_loc_id;
 
-            const assigneeSelect = document.getElementById('taskAssignee');
-            assigneeSelect.innerHTML = '<option value="">Unassigned</option>' +
-                currentUsers.filter(u => u.is_active).map(u => `<option value="${u.id}">${u.username} (${u.role})</option>`).join('');
-            if (task.assigned_to) assigneeSelect.value = task.assigned_to;
+                const assigneeSelect = document.getElementById('taskAssignee');
+                assigneeSelect.innerHTML = '<option value="">Unassigned</option>' +
+                    currentUsers.filter(u => u.is_active).map(u => `<option value="${u.id}">${u.username} (${u.role})</option>`).join('');
+                if (task.assigned_to) assigneeSelect.value = task.assigned_to;
 
-            document.getElementById('taskPart').value = task.part_name || '';
-            document.getElementById('taskLead').value = task.lead_time_days || '';
-            document.getElementById('taskVendor').value = task.vendor || '';
-            document.getElementById('taskVendorPN').value = task.vendor_part_number || '';
+                document.getElementById('taskPart').value = task.part_name || '';
+                document.getElementById('taskLead').value = task.lead_time_days || '';
+                document.getElementById('taskVendor').value = task.vendor || '';
+                document.getElementById('taskVendorPN').value = task.vendor_part_number || '';
 
-            displayAttachments();
-            await loadCompletionHistory(taskId);
+                displayAttachments();
+                await loadCompletionHistory(taskId);
 
-            showPage('tasks');
+                showPage('tasks');
+            } catch (error) {
+                console.error('Error editing task:', error);
+                alert('Failed to load task details');
+            }
         }
-
         async function loadCompletionHistory(taskId) {
             try {
                 const response = await fetch(`${API_BASE}/tasks/${taskId}/completions`, {
@@ -933,6 +973,13 @@
         async function submitCompletion() {
             if (!selectedTaskId) return;
 
+            const completeBtn = event.target;
+            if (completeBtn.disabled) return;
+            completeBtn.disabled = true;
+            completeBtn.classList.add('btn-loading');
+            const originalText = completeBtn.textContent;
+            completeBtn.textContent = 'Completing';
+
             const data = {
                 status: document.getElementById('completionStatus').value,
                 notes: document.getElementById('completionNotes').value || null,
@@ -958,11 +1005,22 @@
             } catch (error) {
                 console.error('Error completing task:', error);
                 alert('Failed to complete task');
+            } finally {
+                completeBtn.disabled = false;
+                completeBtn.classList.remove('btn-loading');
+                completeBtn.textContent = originalText;
             }
         }
 
-        async function updateTask() {
+       async function updateTask() {
             if (!selectedTaskId) return;
+            
+            const btn = document.getElementById('updateTaskBtn');
+            if (btn.disabled) return; // Prevent double-click
+            btn.disabled = true;
+            btn.classList.add('btn-loading');
+            const originalText = btn.textContent;
+            btn.textContent = 'Saving';
 
             const data = {
                 name: document.getElementById('taskName').value.trim(),
@@ -980,43 +1038,68 @@
 
             if (!data.name || !data.frequency_days || !data.next_run || !data.location_id) {
                 alert('Please fill required fields');
+                btn.disabled = false;
+                btn.classList.remove('btn-loading');
+                btn.textContent = originalText;
                 return;
             }
 
             try {
-                await fetch(`${API_BASE}/tasks/${selectedTaskId}`, {
+                const response = await fetch(`${API_BASE}/tasks/${selectedTaskId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify(data)
                 });
 
+                if (!response.ok) throw new Error('Update failed');
+
                 await loadDashboard();
                 alert('Task updated!');
                 showPage('dashboard');
             } catch (error) {
                 console.error('Error updating:', error);
-                alert('Failed to update');
+                alert('Failed to update task');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('btn-loading');
+                btn.textContent = originalText;
             }
         }
 
         async function deleteTask() {
-            if (!selectedTaskId || !confirm('Delete this task?')) return;
+            if (!selectedTaskId) return;
+            
+            const task = currentTasks.find(t => t.id === selectedTaskId);
+            const taskName = task ? task.name : 'this task';
+            
+            if (!confirm(`Are you sure you want to delete "${taskName}"?\n\nThis will permanently delete:\n- The task\n- All completion history\n- All attachments\n\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            const btn = document.getElementById('deleteTaskBtn');
+            btn.disabled = true;
+            const originalText = btn.textContent;
+            btn.textContent = 'Deleting...';
 
             try {
-                await fetch(`${API_BASE}/tasks/${selectedTaskId}`, { 
+                const response = await fetch(`${API_BASE}/tasks/${selectedTaskId}`, { 
                     method: 'DELETE',
                     credentials: 'include'
                 });
+                
+                if (!response.ok) throw new Error('Delete failed');
+                
                 await loadDashboard();
                 alert('Task deleted!');
                 showPage('dashboard');
             } catch (error) {
                 console.error('Error deleting:', error);
-                alert('Failed to delete');
+                alert('Failed to delete task');
+                btn.disabled = false;
+                btn.textContent = originalText;
             }
         }
-
         async function refreshFlocs() {
             try {
                 const flocs = await fetch(`${API_BASE}/funclocations`, {credentials: 'include'}).then(r => r.json());
@@ -1131,13 +1214,21 @@
         }
 
         async function deleteFloc() {
-            if (!selectedFlocId || !confirm('Delete this location?')) return;
+            if (!selectedFlocId) return;
+            
+            const floc = currentFlocs.find(f => f.id === selectedFlocId);
+            const flocName = floc ? floc.name : 'this location';
+            
+            if (!confirm(`Are you sure you want to delete "${flocName}"?\n\nThis action cannot be undone.`)) {
+                return;
+            }
 
             try {
                 const response = await fetch(`${API_BASE}/funclocations/${selectedFlocId}`, { 
                     method: 'DELETE',
                     credentials: 'include'
                 });
+                
                 if (!response.ok) {
                     const data = await response.json();
                     alert('Failed: ' + data.message);
@@ -1148,9 +1239,10 @@
                 await refreshFlocs();
                 await loadDashboard();
                 document.getElementById('flocEditSection').innerHTML = '<p class="empty-state-text">Select a location</p>';
+                alert('Location deleted!');
             } catch (error) {
                 console.error('Error deleting:', error);
-                alert('Failed to delete');
+                alert('Failed to delete location');
             }
         }
 
@@ -1348,8 +1440,7 @@
             document.getElementById('modalFlocDesc').value = '';
             
             // Check if a functional location is currently selected
-            const selectedNode = document.querySelector('#flocTreeNav .tree-node.selected');
-            if (selectedNode && selectedFlocId) {
+            if (selectedFlocId) {
                 // Automatically set to child mode with the selected location as parent
                 document.querySelector('input[name="parentType"][value="child"]').checked = true;
                 document.getElementById('parentSelectContainer').style.display = 'block';
@@ -1380,7 +1471,7 @@
             document.getElementById('addLocationModal').classList.remove('show');
         }
 
-        async function addLocationFromModal() {
+       async function addLocationFromModal() {
             const name = document.getElementById('modalFlocName').value.trim();
             const desc = document.getElementById('modalFlocDesc').value || null;
             const isChild = document.querySelector('input[name="parentType"][value="child"]').checked;
@@ -1396,8 +1487,16 @@
                 return;
             }
 
+            // Disable the create button to prevent double submission
+            const createBtn = event.target;
+            if (createBtn.disabled) return;
+            createBtn.disabled = true;
+            createBtn.classList.add('btn-loading');
+            const originalText = createBtn.textContent;
+            createBtn.textContent = 'Creating';
+
             try {
-                await fetch(`${API_BASE}/funclocations`, {
+                const response = await fetch(`${API_BASE}/funclocations`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
@@ -1408,12 +1507,192 @@
                     })
                 });
 
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Failed to add location');
+                }
+
+                const newFloc = await response.json();
+                
+                // If it has a parent, expand that parent node
+                if (newFloc.parent_id) {
+                    expandedTreeNodes.add(newFloc.parent_id);
+                }
+
                 closeAddLocationModal();
+                
+                // Reload dashboard to get updated functional locations
                 await loadDashboard();
+                
+                // Select the newly created location
+                selectedFlocId = newFloc.id;
+                selectFlocFromTree(newFloc.id);
+                
                 alert('Location created!');
             } catch (error) {
                 console.error('Error adding:', error);
-                alert('Failed to add');
+                alert('Failed to add location: ' + error.message);
+            } finally {
+                createBtn.disabled = false;
+                createBtn.classList.remove('btn-loading');
+                createBtn.textContent = originalText;
+            }
+        }
+
+        function showExportMenu() {
+            document.getElementById('exportMenu').classList.add('show');
+        }
+
+        function closeExportMenu() {
+            document.getElementById('exportMenu').classList.remove('show');
+        }
+
+        function escapeCSV(field) {
+            if (field === null || field === undefined) return '';
+            const str = String(field);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        }
+
+        function downloadCSV(csv, filename) {
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function exportTasks() {
+            const headers = ['Task Name', 'Location', 'Functional Location', 'Status', 'Assigned To', 
+                            'Next Run Date', 'Frequency (days)', 'Part Name', 'Vendor', 'Vendor Part #', 
+                            'Lead Time (days)', 'Last Completed', 'Total Completions'];
+            
+            const rows = currentTasks.map(t => {
+                const funcLoc = currentFlocs.find(f => f.id === t.func_loc_id);
+                return [
+                    t.name,
+                    t.location,
+                    funcLoc ? funcLoc.name : '',
+                    t.status,
+                    t.assignee_name || 'Unassigned',
+                    t.next_run.split('T')[0],
+                    t.frequency_days,
+                    t.part_name || '',
+                    t.vendor || '',
+                    t.vendor_part_number || '',
+                    t.lead_time_days || '0',
+                    t.last_completed ? t.last_completed.split('T')[0] : '',
+                    t.completion_count || '0'
+                ];
+            });
+            
+            let csv = headers.map(escapeCSV).join(',') + '\n';
+            rows.forEach(row => {
+                csv += row.map(escapeCSV).join(',') + '\n';
+            });
+            
+            const filename = `maintenance_tasks_${new Date().toISOString().split('T')[0]}.csv`;
+            downloadCSV(csv, filename);
+            closeExportMenu();
+            alert(`Exported ${currentTasks.length} tasks to ${filename}`);
+        }
+
+        async function exportCompletionHistory() {
+            try {
+                // Fetch all completion records for all tasks
+                const completionsPromises = currentTasks.map(task => 
+                    fetch(`${API_BASE}/tasks/${task.id}/completions`, {
+                        credentials: 'include'
+                    }).then(r => r.json()).then(completions => 
+                        completions.map(c => ({
+                            taskName: task.name,
+                            taskLocation: task.location,
+                            ...c
+                        }))
+                    ).catch(() => [])
+                );
+                
+                const allCompletionsArrays = await Promise.all(completionsPromises);
+                const allCompletions = allCompletionsArrays.flat();
+                
+                if (allCompletions.length === 0) {
+                    alert('No completion history to export');
+                    closeExportMenu();
+                    return;
+                }
+                
+                const headers = ['Task Name', 'Location', 'Completed By', 'Completed At', 'Scheduled Date', 
+                                'Status', 'Duration (min)', 'Labor Hours', 'Parts Used', 'Notes'];
+                
+                const rows = allCompletions.map(c => [
+                    c.taskName,
+                    c.taskLocation,
+                    c.completed_by,
+                    new Date(c.completed_at).toLocaleString(),
+                    new Date(c.scheduled_date).toLocaleDateString(),
+                    c.status,
+                    c.duration_minutes || '',
+                    c.labor_hours || '',
+                    c.parts_used || '',
+                    c.notes || ''
+                ]);
+                
+                let csv = headers.map(escapeCSV).join(',') + '\n';
+                rows.forEach(row => {
+                    csv += row.map(escapeCSV).join(',') + '\n';
+                });
+                
+                const filename = `completion_history_${new Date().toISOString().split('T')[0]}.csv`;
+                downloadCSV(csv, filename);
+                closeExportMenu();
+                alert(`Exported ${allCompletions.length} completion records to ${filename}`);
+            } catch (error) {
+                console.error('Error exporting completions:', error);
+                alert('Failed to export completion history');
+            }
+        }
+
+        async function exportWorkload() {
+            try {
+                const response = await fetch(`${API_BASE}/api/workload`, {credentials: 'include'});
+                const workload = await response.json();
+                
+                if (workload.length === 0) {
+                    alert('No workload data to export');
+                    closeExportMenu();
+                    return;
+                }
+                
+                const headers = ['Username', 'Email', 'Role', 'Total Tasks', 'Overdue', 'Due This Week'];
+                
+                const rows = workload.map(w => [
+                    w.username,
+                    w.email,
+                    w.role,
+                    w.total_tasks,
+                    w.overdue,
+                    w.due_this_week
+                ]);
+                
+                let csv = headers.map(escapeCSV).join(',') + '\n';
+                rows.forEach(row => {
+                    csv += row.map(escapeCSV).join(',') + '\n';
+                });
+                
+                const filename = `workload_report_${new Date().toISOString().split('T')[0]}.csv`;
+                downloadCSV(csv, filename);
+                closeExportMenu();
+                alert(`Exported workload for ${workload.length} users to ${filename}`);
+            } catch (error) {
+                console.error('Error exporting workload:', error);
+                alert('Failed to export workload report');
             }
         }
 
@@ -1436,6 +1715,14 @@
             const bell = document.querySelector('.notification-bell');
             if (notificationPanelOpen && !panel.contains(e.target) && !bell.contains(e.target)) {
                 toggleNotifications();
+            }
+        });
+
+        // Close export menu when clicking outside
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('exportMenu');
+            if (menu && menu.classList.contains('show') && e.target === menu) {
+                closeExportMenu();
             }
         });
     </script>

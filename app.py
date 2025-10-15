@@ -6,7 +6,23 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import os
+import sys
 from sqlalchemy import desc
+
+# Validate critical environment variables
+if not os.getenv('SECRET_KEY') or os.getenv('SECRET_KEY') == 'dev-secret-key-change-in-production':
+    if os.getenv('RENDER'):  # Check if running on Render
+        print("ERROR: SECRET_KEY environment variable must be set in production!")
+        print("Please set it in your Render dashboard under Environment Variables")
+        sys.exit(1)
+    else:
+        print("WARNING: Using default SECRET_KEY. This is NOT secure for production!")
+
+if not os.getenv('DATABASE_URL'):
+    print("ERROR: DATABASE_URL environment variable is required!")
+    sys.exit(1)
+
+print("✓ Environment variables validated")
 
 app = Flask(__name__)
 
@@ -826,4 +842,4 @@ scheduler.add_job(
 scheduler.start()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)  # CRITICAL: Never run debug=True in production
