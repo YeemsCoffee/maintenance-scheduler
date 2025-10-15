@@ -1471,11 +1471,13 @@
             document.getElementById('addLocationModal').classList.remove('show');
         }
 
-       async function addLocationFromModal() {
+        async function addLocationFromModal() {
             const name = document.getElementById('modalFlocName').value.trim();
             const desc = document.getElementById('modalFlocDesc').value || null;
             const isChild = document.querySelector('input[name="parentType"][value="child"]').checked;
             const parentId = isChild ? document.getElementById('modalFlocParent').value : null;
+
+            console.log('Adding location:', { name, desc, isChild, parentId });
 
             if (!name) {
                 alert('Name required');
@@ -1487,50 +1489,62 @@
                 return;
             }
 
-            // Disable the create button to prevent double submission
-            const createBtn = event.target;
-            if (createBtn.disabled) return;
+            const createBtn = document.querySelector('#addLocationModal .btn-primary');
+            if (!createBtn || createBtn.disabled) return;
+            
             createBtn.disabled = true;
             createBtn.classList.add('btn-loading');
             const originalText = createBtn.textContent;
             createBtn.textContent = 'Creating';
+
+            const payload = {
+                name: name,
+                description: desc,
+                parent_id: parentId ? parseInt(parentId) : null
+            };
+            
+            console.log('Sending payload:', payload);
 
             try {
                 const response = await fetch(`${API_BASE}/funclocations`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({
-                        name,
-                        description: desc,
-                        parent_id: parentId ? parseInt(parentId) : null
-                    })
+                    body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || 'Failed to add location');
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+
+                const contentType = response.headers.get('content-type');
+                console.log('Content-Type:', contentType);
+                
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Non-JSON response:', text.substring(0, 500));
+                    throw new Error(`Server error: ${response.status}. Check browser console for details.`);
                 }
 
-                const newFloc = await response.json();
-                
-                // If it has a parent, expand that parent node
-                if (newFloc.parent_id) {
-                    expandedTreeNodes.add(newFloc.parent_id);
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (!response.ok) {
+                    throw new Error(data.message || data.error || 'Failed to add location');
+                }
+
+                if (data.parent_id) {
+                    expandedTreeNodes.add(data.parent_id);
                 }
 
                 closeAddLocationModal();
-                
-                // Reload dashboard to get updated functional locations
                 await loadDashboard();
                 
-                // Select the newly created location
-                selectedFlocId = newFloc.id;
-                selectFlocFromTree(newFloc.id);
+                selectedFlocId = data.id;
+                selectFlocFromTree(data.id);
                 
                 alert('Location created!');
             } catch (error) {
-                console.error('Error adding:', error);
+                console.error('Error adding location:', error);
                 alert('Failed to add location: ' + error.message);
             } finally {
                 createBtn.disabled = false;

@@ -681,18 +681,58 @@ def download_attachment(attachment_id):
 @login_required
 def handle_funclocs():
     if request.method == 'POST':
-        data = request.get_json() or request.form
-        fl = FunctionalLocation(
-            name=data['name'],
-            description=data.get('description'),
-            parent_id=data.get('parent_id')
-        )
-        db.session.add(fl)
-        db.session.commit()
-        return jsonify({'id': fl.id, 'name': fl.name, 'description': fl.description, 'parent_id': fl.parent_id}), 201
+        try:
+            data = request.get_json()
+            
+            # Validate required fields
+            if not data or not data.get('name'):
+                return jsonify({'error': 'Name is required'}), 400
+            
+            # Check for duplicate name
+            existing = FunctionalLocation.query.filter_by(name=data['name']).first()
+            if existing:
+                return jsonify({'error': 'A location with this name already exists'}), 400
+            
+            # Validate parent_id if provided
+            parent_id = data.get('parent_id')
+            if parent_id:
+                parent = FunctionalLocation.query.get(parent_id)
+                if not parent:
+                    return jsonify({'error': 'Parent location not found'}), 404
+            
+            # Create new functional location
+            fl = FunctionalLocation(
+                name=data['name'],
+                description=data.get('description'),
+                parent_id=parent_id
+            )
+            db.session.add(fl)
+            db.session.commit()
+            
+            return jsonify({
+                'id': fl.id, 
+                'name': fl.name, 
+                'description': fl.description, 
+                'parent_id': fl.parent_id
+            }), 201
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error creating functional location: {e}")
+            return jsonify({'error': 'Failed to create location', 'message': str(e)}), 500
 
-    fls = FunctionalLocation.query.order_by(FunctionalLocation.name).all()
-    return jsonify([{'id': f.id, 'name': f.name, 'description': f.description, 'parent_id': f.parent_id} for f in fls])
+    # GET request
+    try:
+        fls = FunctionalLocation.query.order_by(FunctionalLocation.name).all()
+        return jsonify([{
+            'id': f.id, 
+            'name': f.name, 
+            'description': f.description, 
+            'parent_id': f.parent_id
+        } for f in fls])
+    except Exception as e:
+        print(f"Error fetching functional locations: {e}")
+        return jsonify({'error': 'Failed to fetch locations', 'message': str(e)}), 500
 
 @app.route('/funclocations/<int:fl_id>', methods=['PUT', 'PATCH'])
 @login_required
