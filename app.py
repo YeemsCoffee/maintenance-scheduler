@@ -92,11 +92,16 @@ class Location(db.Model):
 class FunctionalLocation(db.Model):
     __tablename__ = 'functional_locations'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)
+    name = db.Column(db.String(100), nullable=False)  # Remove unique=True
     description = db.Column(db.Text, nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('functional_locations.id'), nullable=True)
     parent = db.relationship('FunctionalLocation', remote_side=[id], backref='children')
     tasks = db.relationship('MaintenanceTask', backref='func_loc', lazy=True)
+    
+    # Add composite unique constraint - name must be unique within same parent
+    __table_args__ = (
+        db.UniqueConstraint('name', 'parent_id', name='uix_name_parent'),
+    )
 
 class MaintenanceTask(db.Model):
     __tablename__ = 'maintenance_tasks'
@@ -688,13 +693,31 @@ def handle_funclocs():
             if not data or not data.get('name'):
                 return jsonify({'error': 'Name is required'}), 400
             
-            # Check for duplicate name
-            existing = FunctionalLocation.query.filter_by(name=data['name']).first()
-            if existing:
-                return jsonify({'error': 'A location with this name already exists'}), 400
+            name = data['name'].strip()
+            parent_id = data.get('parent_id')
+            
+            # Check for duplicate name under the SAME parent only
+            # This allows "Floor 1" under "Building A" and "Floor 1" under "Building B"
+            duplicate_query = FunctionalLocation.query.filter_by(name=name)
+            
+            if parent_id:
+                # Check if same name exists under this specific parent
+                duplicate = duplicate_query.filter_by(parent_id=parent_id).first()
+                if duplicate:
+                    parent = FunctionalLocation.query.get(parent_id)
+                    parent_name = parent.name if parent else "this parent"
+                    return jsonify({
+                        'error': f'A location named "{name}" already exists under {parent_name}'
+                    }), 400
+            else:
+                # Check if same name exists at root level (parent_id = None)
+                duplicate = duplicate_query.filter_by(parent_id=None).first()
+                if duplicate:
+                    return jsonify({
+                        'error': f'A top-level location named "{name}" already exists'
+                    }), 400
             
             # Validate parent_id if provided
-            parent_id = data.get('parent_id')
             if parent_id:
                 parent = FunctionalLocation.query.get(parent_id)
                 if not parent:
@@ -702,7 +725,7 @@ def handle_funclocs():
             
             # Create new functional location
             fl = FunctionalLocation(
-                name=data['name'],
+                name=name,
                 description=data.get('description'),
                 parent_id=parent_id
             )
