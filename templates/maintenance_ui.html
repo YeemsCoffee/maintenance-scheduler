@@ -419,13 +419,6 @@
                             <input type="date" id="modalTaskDate">
                         </div>
                     </div>
-
-                    <div class="form-group">
-                        <label>Assign To</label>
-                        <select id="modalTaskAssignee">
-                            <option value="">Unassigned</option>
-                        </select>
-                    </div>
                     
                     <div class="form-group">
                         <label>Part Name</label>
@@ -1786,11 +1779,6 @@
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('modalTaskDate').value = today;
             
-            // Populate assignee dropdown
-            const assigneeSelect = document.getElementById('modalTaskAssignee');
-            assigneeSelect.innerHTML = '<option value="">Unassigned</option>' +
-                currentUsers.filter(u => u.is_active).map(u => `<option value="${u.id}">${u.username} (${u.role})</option>`).join('');
-            
             // Clear form fields
             document.getElementById('modalTaskName').value = '';
             document.getElementById('modalTaskFreq').value = '';
@@ -1813,10 +1801,28 @@
         async function createTaskFromModal() {
             const flocId = parseInt(document.getElementById('addTaskModal').getAttribute('data-floc-id'));
             
-            // Use the first available location as default, or prompt user to create one
+            // Auto-create a default location if none exists
             if (currentLocations.length === 0) {
-                alert('Please create at least one physical location first');
-                return;
+                try {
+                    const response = await fetch(`${API_BASE}/locations`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ name: 'Default Location' })
+                    });
+                    
+                    if (response.ok) {
+                        const newLocation = await response.json();
+                        currentLocations.push(newLocation);
+                    } else {
+                        alert('Please create a physical location first from the admin menu');
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error creating default location:', error);
+                    alert('Failed to create default location');
+                    return;
+                }
             }
             
             const data = {
@@ -1825,7 +1831,7 @@
                 next_run: document.getElementById('modalTaskDate').value,
                 location_id: currentLocations[0].id, // Use first available location
                 func_loc_id: flocId,
-                assigned_to: document.getElementById('modalTaskAssignee').value || null,
+                assigned_to: null, // Tasks created unassigned
                 part_name: document.getElementById('modalTaskPart').value || '',
                 vendor: document.getElementById('modalTaskVendor').value || '',
                 vendor_part_number: document.getElementById('modalTaskVendorPN').value || '',
