@@ -7,7 +7,7 @@ import psycopg2
 import os
 
 # Database connection
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://yeems:supersecure@localhost:5432/maintenance_db')
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://maintenance_app_user:krSPjD3SOsgKuLCF17y5MAfjM0oIfu9X@dpg-d3ma6215pdvs73b34img-a.oregon-postgres.render.com/maintenance_app')
 if DATABASE_URL.startswith('postgres://'):
     DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
