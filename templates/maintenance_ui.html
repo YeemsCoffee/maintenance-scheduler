@@ -420,19 +420,11 @@
                         </div>
                     </div>
 
-                    <div class="two-col-grid">
-                        <div class="form-group">
-                            <label>Location *</label>
-                            <select id="modalTaskLocation">
-                                <option value="">Select location...</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Assign To</label>
-                            <select id="modalTaskAssignee">
-                                <option value="">Unassigned</option>
-                            </select>
-                        </div>
+                    <div class="form-group">
+                        <label>Assign To</label>
+                        <select id="modalTaskAssignee">
+                            <option value="">Unassigned</option>
+                        </select>
                     </div>
                     
                     <div class="form-group">
@@ -1794,11 +1786,6 @@
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('modalTaskDate').value = today;
             
-            // Populate location dropdown
-            const locationSelect = document.getElementById('modalTaskLocation');
-            locationSelect.innerHTML = '<option value="">Select location...</option>' +
-                currentLocations.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
-            
             // Populate assignee dropdown
             const assigneeSelect = document.getElementById('modalTaskAssignee');
             assigneeSelect.innerHTML = '<option value="">Unassigned</option>' +
@@ -1826,11 +1813,17 @@
         async function createTaskFromModal() {
             const flocId = parseInt(document.getElementById('addTaskModal').getAttribute('data-floc-id'));
             
+            // Use the first available location as default, or prompt user to create one
+            if (currentLocations.length === 0) {
+                alert('Please create at least one physical location first');
+                return;
+            }
+            
             const data = {
                 name: document.getElementById('modalTaskName').value.trim(),
                 frequency_days: parseInt(document.getElementById('modalTaskFreq').value),
                 next_run: document.getElementById('modalTaskDate').value,
-                location_id: parseInt(document.getElementById('modalTaskLocation').value),
+                location_id: currentLocations[0].id, // Use first available location
                 func_loc_id: flocId,
                 assigned_to: document.getElementById('modalTaskAssignee').value || null,
                 part_name: document.getElementById('modalTaskPart').value || '',
@@ -1850,10 +1843,6 @@
             }
             if (!data.next_run) {
                 alert('Please select a next run date');
-                return;
-            }
-            if (!data.location_id) {
-                alert('Please select a location');
                 return;
             }
 
