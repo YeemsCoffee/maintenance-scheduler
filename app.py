@@ -579,13 +579,18 @@ def complete_task(task_id):
     # Update task
     task.last_completed = datetime.utcnow()
     
+    now = datetime.utcnow()
     if completion.status == 'completed':
-        # Reschedule to next occurrence
+        # Reschedule to next future occurrence
         task.next_run = task.next_run + timedelta(days=task.frequency_days)
+        while task.next_run < now:
+            task.next_run = task.next_run + timedelta(days=task.frequency_days)
         task.status = 'pending'
     elif completion.status == 'skipped':
         # Still reschedule but mark as skipped
         task.next_run = task.next_run + timedelta(days=task.frequency_days)
+        while task.next_run < now:
+            task.next_run = task.next_run + timedelta(days=task.frequency_days)
         task.status = 'pending'
     
     task.update_status()
