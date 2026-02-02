@@ -1230,7 +1230,7 @@
                 </div>
                 <div class="btn-group">
                     <button class="btn btn-primary" onclick="saveFloc()">Save Changes</button>
-                    <button class="btn btn-danger" onclick="deleteFloc()">Delete</button>
+                    ${currentUserData.role === 'admin' ? '<button class="btn btn-danger" onclick="deleteFloc()">Delete</button>' : ''}
                 </div>
             `;
         }

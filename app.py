@@ -789,7 +789,7 @@ def update_funcloc(fl_id):
     return jsonify({'status': 'ok', 'id': fl.id, 'name': fl.name, 'description': fl.description, 'parent_id': fl.parent_id})
 
 @app.route('/funclocations/<int:fl_id>', methods=['DELETE'])
-@login_required
+@admin_required
 def delete_funcloc(fl_id):
     fl = FunctionalLocation.query.get_or_404(fl_id)
     if fl.children and len(fl.children) > 0:
