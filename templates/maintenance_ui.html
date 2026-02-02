@@ -644,6 +644,14 @@
                 document.getElementById('statCompleted').textContent = stats.my_tasks.completed_this_month || 0;
 
                 buildFlocTreeNav();
+
+                // Re-render selected functional location detail view with fresh data
+                if (selectedFlocId) {
+                    const floc = currentFlocs.find(f => f.id === selectedFlocId);
+                    if (floc) {
+                        buildFlocDetailView(floc);
+                    }
+                }
             } catch (error) {
                 console.error('Error loading dashboard:', error);
                 alert('Failed to load dashboard data. Please refresh the page.');
