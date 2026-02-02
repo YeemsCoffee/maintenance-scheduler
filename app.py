@@ -579,13 +579,18 @@ def complete_task(task_id):
     # Update task
     task.last_completed = datetime.utcnow()
     
+    now = datetime.utcnow()
     if completion.status == 'completed':
-        # Reschedule to next occurrence
+        # Reschedule to next future occurrence
         task.next_run = task.next_run + timedelta(days=task.frequency_days)
+        while task.next_run < now:
+            task.next_run = task.next_run + timedelta(days=task.frequency_days)
         task.status = 'pending'
     elif completion.status == 'skipped':
         # Still reschedule but mark as skipped
         task.next_run = task.next_run + timedelta(days=task.frequency_days)
+        while task.next_run < now:
+            task.next_run = task.next_run + timedelta(days=task.frequency_days)
         task.status = 'pending'
     
     task.update_status()
@@ -784,7 +789,7 @@ def update_funcloc(fl_id):
     return jsonify({'status': 'ok', 'id': fl.id, 'name': fl.name, 'description': fl.description, 'parent_id': fl.parent_id})
 
 @app.route('/funclocations/<int:fl_id>', methods=['DELETE'])
-@login_required
+@admin_required
 def delete_funcloc(fl_id):
     fl = FunctionalLocation.query.get_or_404(fl_id)
     if fl.children and len(fl.children) > 0:
