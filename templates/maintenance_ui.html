@@ -800,7 +800,10 @@
                             <h3 class="floc-detail-title">${floc.name}</h3>
                             ${floc.description ? `<p class="floc-detail-desc">${floc.description}</p>` : ''}
                         </div>
-                        <button class="btn btn-primary btn-small" onclick="showAddTaskModal(${floc.id})">+ Add Task</button>
+                        <div class="btn-group">
+                            <button class="btn btn-primary btn-small" onclick="showAddTaskModal(${floc.id})">+ Add Task</button>
+                            ${currentUserData.role === 'admin' ? `<button class="btn btn-danger btn-small" onclick="deleteFlocFromDetail(${floc.id})">Delete Location</button>` : ''}
+                        </div>
                     </div>
                     <p class="floc-detail-stats">
                         Total Tasks: ${allTasks.length}
@@ -818,6 +821,35 @@
             }
 
             viewDiv.innerHTML = html;
+        }
+
+        async function deleteFlocFromDetail(flocId) {
+            const floc = currentFlocs.find(f => f.id === flocId);
+            const flocName = floc ? floc.name : 'this location';
+
+            if (!confirm(`Are you sure you want to delete "${flocName}"?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/funclocations/${flocId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    alert('Failed: ' + data.message);
+                    return;
+                }
+
+                selectedFlocId = null;
+                document.getElementById('flocTaskView').innerHTML = '<div class="empty-state">Location deleted. Select another location.</div>';
+                await loadDashboard();
+            } catch (error) {
+                console.error('Error deleting location:', error);
+                alert('Error deleting location');
+            }
         }
 
         function renderTaskList(tasks) {
