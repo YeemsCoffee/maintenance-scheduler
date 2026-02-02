@@ -637,13 +637,23 @@
                 currentLocations = locations || [];
                 currentUsers = users || [];
 
-                // Update stats
-                document.getElementById('statTotalTasks').textContent = stats.my_tasks.total || 0;
-                document.getElementById('statOverdue').textContent = stats.my_tasks.overdue || 0;
-                document.getElementById('statDueWeek').textContent = stats.my_tasks.due_this_week || 0;
+                // Update stats from actual task data
+                const now = new Date();
+                const oneWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                document.getElementById('statTotalTasks').textContent = currentTasks.length;
+                document.getElementById('statOverdue').textContent = currentTasks.filter(t => t.status === 'overdue').length;
+                document.getElementById('statDueWeek').textContent = currentTasks.filter(t => new Date(t.next_run) <= oneWeek && t.status !== 'overdue').length;
                 document.getElementById('statCompleted').textContent = stats.my_tasks.completed_this_month || 0;
 
                 buildFlocTreeNav();
+
+                // Re-render selected functional location detail view with fresh data
+                if (selectedFlocId) {
+                    const floc = currentFlocs.find(f => f.id === selectedFlocId);
+                    if (floc) {
+                        buildFlocDetailView(floc);
+                    }
+                }
             } catch (error) {
                 console.error('Error loading dashboard:', error);
                 alert('Failed to load dashboard data. Please refresh the page.');
