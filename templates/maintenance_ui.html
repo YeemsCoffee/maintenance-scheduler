@@ -339,6 +339,35 @@
                     <button class="btn btn-secondary btn-auto-margin" onclick="showPage('dashboard')">← Back</button>
                 </div>
             </div>
+
+            <div class="card">
+                <h2>➕ Add User</h2>
+                <div class="two-col-grid">
+                    <div class="form-group">
+                        <label>Username *</label>
+                        <input type="text" id="newUserUsername" placeholder="e.g., jsmith">
+                    </div>
+                    <div class="form-group">
+                        <label>Email *</label>
+                        <input type="email" id="newUserEmail" placeholder="e.g., jsmith@example.com">
+                    </div>
+                </div>
+                <div class="two-col-grid">
+                    <div class="form-group">
+                        <label>Password *</label>
+                        <input type="password" id="newUserPassword" placeholder="Temporary password">
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select id="newUserRole">
+                            <option value="technician">Technician</option>
+                            <option value="viewer">Viewer</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="addUser()">Add User</button>
+            </div>
         </div>
 
         <!-- Add Location Modal -->
@@ -1414,6 +1443,7 @@
                                         ${u.is_active ? 'Disable' : 'Enable'}
                                     </button>
                                 ` : '<span class="protected-user">Protected</span>'}
+                                <button class="btn btn-secondary btn-small" onclick="resetUserPassword(${u.id}, '${u.username}')">Reset Password</button>
                             </td>
                         </tr>
                     `).join('');
@@ -1462,6 +1492,63 @@
             } catch (error) {
                 console.error('Error updating:', error);
                 alert('Failed to update');
+            }
+        }
+
+        async function addUser() {
+            const username = document.getElementById('newUserUsername').value.trim();
+            const email = document.getElementById('newUserEmail').value.trim();
+            const password = document.getElementById('newUserPassword').value;
+            const role = document.getElementById('newUserRole').value;
+
+            if (!username || !email || !password) {
+                alert('Username, email and password are required');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/users`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ username, email, password, role })
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    alert('Failed: ' + (data.message || data.error));
+                    return;
+                }
+
+                document.getElementById('newUserUsername').value = '';
+                document.getElementById('newUserEmail').value = '';
+                document.getElementById('newUserPassword').value = '';
+                document.getElementById('newUserRole').value = 'technician';
+                alert(`User "${username}" created`);
+                refreshUsers();
+            } catch (error) {
+                console.error('Error adding user:', error);
+                alert('Failed to add user');
+            }
+        }
+
+        async function resetUserPassword(userId, username) {
+            const password = prompt(`Enter a new password for "${username}":`);
+            if (!password) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/users/${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ password })
+                });
+
+                if (!response.ok) throw new Error('Reset failed');
+                alert(`Password reset for "${username}"`);
+            } catch (error) {
+                console.error('Error resetting password:', error);
+                alert('Failed to reset password');
             }
         }
 

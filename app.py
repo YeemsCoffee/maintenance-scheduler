@@ -290,7 +290,9 @@ def register():
         return jsonify({'error': 'Email already exists'}), 400
     
     user_count = User.query.count()
-    role = 'admin' if user_count == 0 else data.get('role', 'technician')
+    # Self-registered users are never admins (except the very first user);
+    # admins can promote users from the Manage Users page
+    role = 'admin' if user_count == 0 else 'technician'
     
     user = User(username=data['username'], email=data['email'], role=role)
     user.set_password(data['password'])
@@ -354,6 +356,31 @@ def get_users():
         'notification_days_ahead': u.notification_days_ahead
     } for u in users])
 
+@app.route('/api/users', methods=['POST'])
+@admin_required
+def create_user():
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    email = (data.get('email') or '').strip()
+    password = data.get('password') or ''
+    role = data.get('role', 'technician')
+
+    if not username or not email or not password:
+        return jsonify({'error': 'missing_fields', 'message': 'Username, email and password are required'}), 400
+    if role not in ('admin', 'technician', 'viewer'):
+        return jsonify({'error': 'invalid_role', 'message': 'Invalid role'}), 400
+    if User.query.filter_by(username=username).first():
+        return jsonify({'error': 'username_taken', 'message': 'Username already exists'}), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify({'error': 'email_taken', 'message': 'Email already exists'}), 400
+
+    user = User(username=username, email=email, role=role)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+
+    return jsonify({'id': user.id, 'username': user.username, 'email': user.email, 'role': user.role}), 201
+
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
 @login_required
 def update_user(user_id):
@@ -367,7 +394,9 @@ def update_user(user_id):
             user.role = data['role']
         if 'is_active' in data:
             user.is_active = data['is_active']
-    
+        if data.get('password'):
+            user.set_password(data['password'])
+
     # Users can update their own notification preferences
     if user_id == session['user_id'] or current_user.role == 'admin':
         if 'notification_days_ahead' in data:
