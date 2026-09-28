@@ -46,31 +46,15 @@
             font-size: 14px;
         }
 
-        .tabs {
-            display: flex;
-            border-bottom: 2px solid #f3f4f6;
-            margin-bottom: 30px;
-        }
-
-        .tab {
-            flex: 1;
-            padding: 12px;
-            text-align: center;
-            cursor: pointer;
-            font-weight: 500;
-            color: #6b7280;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
-            transition: all 0.3s;
-        }
-
-        .tab.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
-        }
-
         .form-group {
             margin-bottom: 20px;
+        }
+
+        .login-help {
+            margin-top: 16px;
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
         }
 
         label {
@@ -147,12 +131,6 @@
         .form-section.active {
             display: block;
         }
-
-        .helper-text {
-            font-size: 12px;
-            color: #6b7280;
-            margin-top: 4px;
-        }
     </style>
 </head>
 <body>
@@ -160,11 +138,6 @@
         <div class="logo">
             <h1>🔧 Maintenance Scheduler</h1>
             <p>Manage your maintenance tasks efficiently</p>
-        </div>
-
-        <div class="tabs">
-            <div class="tab active" onclick="showTab('login')">Login</div>
-            <div class="tab" onclick="showTab('register')">Register</div>
         </div>
 
         <div id="errorMessage" class="error-message"></div>
@@ -185,52 +158,11 @@
 
                 <button type="submit" class="btn" id="loginBtn">Login</button>
             </form>
-        </div>
-
-        <!-- Register Form -->
-        <div id="registerForm" class="form-section">
-            <form onsubmit="handleRegister(event)">
-                <div class="form-group">
-                    <label for="regUsername">Username</label>
-                    <input type="text" id="regUsername" required autocomplete="username">
-                </div>
-
-                <div class="form-group">
-                    <label for="regEmail">Email</label>
-                    <input type="email" id="regEmail" required autocomplete="email">
-                </div>
-
-                <div class="form-group">
-                    <label for="regPassword">Password</label>
-                    <input type="password" id="regPassword" required minlength="6" autocomplete="new-password">
-                    <p class="helper-text">Minimum 6 characters</p>
-                </div>
-
-                <div class="form-group">
-                    <label for="regPasswordConfirm">Confirm Password</label>
-                    <input type="password" id="regPasswordConfirm" required autocomplete="new-password">
-                </div>
-
-                <button type="submit" class="btn" id="registerBtn">Create Account</button>
-            </form>
+            <p class="login-help">Need an account or forgot your password? Ask an administrator.</p>
         </div>
     </div>
 
     <script>
-        function showTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
-
-            document.querySelectorAll('.form-section').forEach(f => f.classList.remove('active'));
-            if (tab === 'login') {
-                document.getElementById('loginForm').classList.add('active');
-            } else {
-                document.getElementById('registerForm').classList.add('active');
-            }
-
-            hideMessages();
-        }
-
         function showError(message) {
             const errorDiv = document.getElementById('errorMessage');
             errorDiv.textContent = message;
@@ -288,55 +220,6 @@
                 showError('Connection error. Please try again.');
                 btn.disabled = false;
                 btn.textContent = 'Login';
-            }
-        }
-
-        async function handleRegister(event) {
-            event.preventDefault();
-            hideMessages();
-
-            const username = document.getElementById('regUsername').value;
-            const email = document.getElementById('regEmail').value;
-            const password = document.getElementById('regPassword').value;
-            const passwordConfirm = document.getElementById('regPasswordConfirm').value;
-            const btn = document.getElementById('registerBtn');
-
-            if (password !== passwordConfirm) {
-                showError('Passwords do not match');
-                return;
-            }
-
-            btn.disabled = true;
-            btn.textContent = 'Creating account...';
-
-            try {
-                const response = await fetch('/api/auth/register', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify({ username, email, password })
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    showSuccess('Account created! You can now login.');
-                    setTimeout(() => {
-                        showTab('login');
-                        document.getElementById('loginUsername').value = username;
-                    }, 1500);
-                } else {
-                    showError(data.error || 'Registration failed');
-                    btn.disabled = false;
-                    btn.textContent = 'Create Account';
-                }
-            } catch (error) {
-                console.error('Registration error:', error);
-                showError('Connection error. Please try again.');
-                btn.disabled = false;
-                btn.textContent = 'Create Account';
             }
         }
     </script>

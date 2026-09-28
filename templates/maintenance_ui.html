@@ -22,7 +22,7 @@
                     <button class="btn btn-secondary btn-small" onclick="showExportMenu()">📊 Export</button>
                     <button class="btn btn-secondary btn-small" onclick="showPage('workload')" id="workloadBtn">👥 Workload</button>
                     <button class="btn btn-secondary btn-small" onclick="showPage('calendar')">📅 Calendar</button>
-                    <button class="btn btn-secondary btn-small hidden" onclick="showPage('users')" id="manageUsersBtn">Manage Users</button>
+                    <button class="btn btn-secondary btn-small admin-only" onclick="showPage('users')">Manage Users</button>
                     <button class="btn btn-secondary btn-small" onclick="handleLogout()">Logout</button>
                 </div>
             </div>
@@ -58,7 +58,7 @@
             <div class="stat-grid">
                 <div class="stat-card">
                     <div class="stat-value" id="statTotalTasks">0</div>
-                    <div class="stat-label">My Tasks</div>
+                    <div class="stat-label">Total Tasks</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" id="statOverdue">0</div>
@@ -78,7 +78,7 @@
                 <div class="card">
                     <div class="card-header">
                         <h2>🗂️ Functional Location Structure</h2>
-                        <button class="btn btn-primary btn-small" onclick="showAddLocationModal()">+ Add Location</button>
+                        <button class="btn btn-primary btn-small editor-only" onclick="showAddLocationModal()">+ Add Location</button>
                     </div>
                     <div class="tree" id="flocTreeNav">
                         <div class="empty-state">Loading...</div>
@@ -180,7 +180,6 @@
                         <select id="taskStatus">
                             <option value="pending">Pending</option>
                             <option value="in_progress">In Progress</option>
-                            <option value="overdue">Overdue</option>
                         </select>
                     </div>
                 </div>
@@ -206,7 +205,7 @@
                 <div class="form-group">
                     <label>📎 Attachments (SOPs, Job Aids, etc.)</label>
                     <div id="attachmentsList" class="attachments-list"></div>
-                    <div class="file-upload-group">
+                    <div class="file-upload-group editor-only">
                         <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.gif,.xlsx,.xls" class="file-input">
                         <button class="btn btn-secondary btn-small" onclick="uploadFile()">Upload</button>
                     </div>
@@ -221,9 +220,9 @@
                 </div>
 
                 <div class="btn-group">
-                    <button class="btn btn-primary" onclick="completeTaskPrompt()" id="completeTaskBtn">✓ Complete Task</button>
-                    <button class="btn btn-primary" id="updateTaskBtn" onclick="updateTask()">Save Changes</button>
-                    <button class="btn btn-danger" id="deleteTaskBtn" onclick="deleteTask()">Delete Task</button>
+                    <button class="btn btn-primary editor-only" onclick="completeTaskPrompt()">✓ Complete Task</button>
+                    <button class="btn btn-primary editor-only" id="updateTaskBtn" onclick="updateTask()">Save Changes</button>
+                    <button class="btn btn-danger admin-only" id="deleteTaskBtn" onclick="deleteTask()">Delete Task</button>
                     <button class="btn btn-secondary" onclick="showPage('dashboard')">← Back</button>
                 </div>
             </div>
@@ -263,52 +262,8 @@
                         <textarea id="completionParts" placeholder="List parts used (optional)..."></textarea>
                     </div>
                     <div class="btn-group">
-                        <button class="btn btn-primary" onclick="submitCompletion()">Complete Task</button>
+                        <button class="btn btn-primary" id="submitCompletionBtn" onclick="submitCompletion()">Complete Task</button>
                         <button class="btn btn-secondary" onclick="closeCompleteModal()">Cancel</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Functional Locations Management Page -->
-        <div id="funcloc" class="page">
-            <div class="grid">
-                <div class="card">
-                    <h2>🗂️ Functional Location Structure</h2>
-                    <div class="tree" id="flocTree">
-                        <div class="empty-state">Loading...</div>
-                    </div>
-                    <div class="btn-group">
-                        <button class="btn btn-secondary" onclick="refreshFlocs()">Refresh</button>
-                        <button class="btn btn-secondary btn-auto-margin" onclick="showPage('dashboard')">← Back</button>
-                    </div>
-                </div>
-
-                <div>
-                    <div class="card">
-                        <h2>✏️ Edit Selected</h2>
-                        <div id="flocEditSection">
-                            <p class="empty-state-text">Select a functional location from the tree</p>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <h2>➕ Add New Location</h2>
-                        <div class="form-group">
-                            <label>Name</label>
-                            <input type="text" id="newFlocName" placeholder="e.g., Building A">
-                        </div>
-                        <div class="form-group">
-                            <label>Description</label>
-                            <textarea id="newFlocDesc" placeholder="Optional description"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label>Parent Location (optional)</label>
-                            <select id="newFlocParent">
-                                <option value="">(None)</option>
-                            </select>
-                        </div>
-                        <button class="btn btn-primary" onclick="addFloc()">Add Location</button>
                     </div>
                 </div>
             </div>
@@ -355,7 +310,7 @@
                 <div class="two-col-grid">
                     <div class="form-group">
                         <label>Password *</label>
-                        <input type="password" id="newUserPassword" placeholder="Temporary password">
+                        <input type="password" id="newUserPassword" placeholder="At least 8 characters" autocomplete="new-password">
                     </div>
                     <div class="form-group">
                         <label>Role</label>
@@ -370,12 +325,12 @@
             </div>
         </div>
 
-        <!-- Add Location Modal -->
+        <!-- Add / Edit Location Modal -->
         <div id="addLocationModal" class="modal-overlay">
             <div class="modal-dialog">
                 <div class="modal-header">
-                    <h2>➕ Create Functional Location</h2>
-                    <p>Add a new location to organize your maintenance tasks</p>
+                    <h2 id="locationModalTitle">➕ Create Functional Location</h2>
+                    <p id="locationModalSubtitle">Add a new location to organize your maintenance tasks</p>
                 </div>
                 
                 <div class="modal-body">
@@ -417,7 +372,7 @@
                     </div>
                     
                     <div class="btn-group">
-                        <button class="btn btn-primary" onclick="addLocationFromModal()">✓ Create</button>
+                        <button class="btn btn-primary" id="locationModalSaveBtn" onclick="saveLocationFromModal()">✓ Create</button>
                         <button class="btn btn-secondary" onclick="closeAddLocationModal()">Cancel</button>
                     </div>
                 </div>
@@ -492,6 +447,27 @@
         let currentUserData = null;
         let currentCalendarDate = new Date();
         let notificationPanelOpen = false;
+        let editingFlocId = null;
+
+        // Escape user-entered text before putting it into innerHTML
+        function esc(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // Read the server's error message from a failed response
+        async function errorMessage(response, fallback) {
+            try {
+                const data = await response.json();
+                return data.message || data.error || fallback;
+            } catch {
+                return fallback;
+            }
+        }
 
         async function checkAuth() {
             try {
@@ -505,11 +481,9 @@
                 currentUserData = await response.json();
                 document.getElementById('currentUser').textContent = currentUserData.username;
                 document.getElementById('currentRole').textContent = currentUserData.role;
-                
-                if (currentUserData.role === 'admin') {
-                    document.getElementById('manageUsersBtn').classList.remove('hidden');
-                }
-                
+                // Drives the .admin-only / .editor-only visibility rules in styles.css
+                document.body.dataset.role = currentUserData.role;
+
                 updateNotificationBadge();
                 return true;
             } catch (error) {
@@ -557,8 +531,8 @@
                 
                 listDiv.innerHTML = notifications.map(n => `
                     <div class="notification-item ${!n.is_read ? 'unread' : ''}" onclick="handleNotificationClick(${n.id}, ${n.task_id})">
-                        <div class="notification-title">${n.title}</div>
-                        <div class="notification-message">${n.message}</div>
+                        <div class="notification-title">${esc(n.title)}</div>
+                        <div class="notification-message">${esc(n.message)}</div>
                         <div class="notification-time">${formatRelativeTime(n.created_at)}</div>
                     </div>
                 `).join('');
@@ -623,9 +597,7 @@
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
             
-            if (pageId === 'funcloc') {
-                refreshFlocs();
-            } else if (pageId === 'dashboard') {
+            if (pageId === 'dashboard') {
                 loadDashboard();
             } else if (pageId === 'users') {
                 refreshUsers();
@@ -672,7 +644,7 @@
                 document.getElementById('statTotalTasks').textContent = currentTasks.length;
                 document.getElementById('statOverdue').textContent = currentTasks.filter(t => t.status === 'overdue').length;
                 document.getElementById('statDueWeek').textContent = currentTasks.filter(t => new Date(t.next_run) <= oneWeek && t.status !== 'overdue').length;
-                document.getElementById('statCompleted').textContent = stats.my_tasks.completed_this_month || 0;
+                document.getElementById('statCompleted').textContent = stats.completed_this_month || 0;
 
                 buildFlocTreeNav();
 
@@ -706,8 +678,8 @@
                     return `
                         <tr>
                             <td>
-                                <strong>${w.username}</strong><br>
-                                <span class="user-email">${w.email}</span>
+                                <strong>${esc(w.username)}</strong><br>
+                                <span class="user-email">${esc(w.email)}</span>
                             </td>
                             <td><strong>${w.total_tasks}</strong></td>
                             <td><span class="overdue-count">${w.overdue}</span></td>
@@ -769,7 +741,7 @@
                 let html = `
                     <div class="${indent} tree-node" data-id="${node.id}">
                         ${hasChildren ? `<span onclick="toggleTreeNode(${node.id}); event.stopPropagation();" class="tree-toggle">${isExpanded ? '▼' : '▶'}</span>` : '<span class="tree-spacer"></span>'}
-                        <span onclick="selectFlocFromTree(${node.id})">${node.name} <span class="tree-task-count">(${totalTasks})</span></span>
+                        <span onclick="selectFlocFromTree(${node.id})">${esc(node.name)} <span class="tree-task-count">(${totalTasks})</span></span>
                     </div>`;
                 
                 if (hasChildren && isExpanded) {
@@ -836,12 +808,13 @@
                 <div class="floc-detail-header">
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
                         <div>
-                            <h3 class="floc-detail-title">${floc.name}</h3>
-                            ${floc.description ? `<p class="floc-detail-desc">${floc.description}</p>` : ''}
+                            <h3 class="floc-detail-title">${esc(floc.name)}</h3>
+                            ${floc.description ? `<p class="floc-detail-desc">${esc(floc.description)}</p>` : ''}
                         </div>
                         <div class="btn-group">
-                            <button class="btn btn-primary btn-small" onclick="showAddTaskModal(${floc.id})">+ Add Task</button>
-                            ${currentUserData.role === 'admin' ? `<button class="btn btn-danger btn-small" onclick="deleteFlocFromDetail(${floc.id})">Delete Location</button>` : ''}
+                            <button class="btn btn-primary btn-small editor-only" onclick="showAddTaskModal(${floc.id})">+ Add Task</button>
+                            <button class="btn btn-secondary btn-small editor-only" onclick="showEditLocationModal(${floc.id})">Edit</button>
+                            <button class="btn btn-danger btn-small admin-only" onclick="deleteFlocFromDetail(${floc.id})">Delete Location</button>
                         </div>
                     </div>
                     <p class="floc-detail-stats">
@@ -877,8 +850,7 @@
                 });
 
                 if (!response.ok) {
-                    const data = await response.json();
-                    alert('Failed: ' + data.message);
+                    alert('Failed: ' + await errorMessage(response, 'Could not delete location'));
                     return;
                 }
 
@@ -894,16 +866,16 @@
         function renderTaskList(tasks) {
             return `<div class="task-list">
                 ${tasks.map(t => `
-                    <div class="task-item task-status-${t.status}" onclick="editTaskFromDashboard(${t.id})">
+                    <div class="task-item task-status-${esc(t.status)}" onclick="editTaskFromDashboard(${t.id})">
                         <div class="task-item-left">
                             <div class="task-name">
-                                ${t.name}
-                                <span class="status-badge status-${t.status}">${t.status.replace('_', ' ')}</span>
+                                ${esc(t.name)}
+                                <span class="status-badge status-${esc(t.status)}">${esc(t.status.replace('_', ' '))}</span>
                             </div>
                             <div class="task-details">
-                                📍 ${t.location}
-                                ${t.assignee_name ? ` | 👤 ${t.assignee_name}` : ' | ⚠️ Unassigned'}
-                                ${t.part_name ? ` | 🔧 ${t.part_name}` : ''}
+                                📍 ${esc(t.location)}
+                                ${t.assignee_name ? ` | 👤 ${esc(t.assignee_name)}` : ' | ⚠️ Unassigned'}
+                                ${t.part_name ? ` | 🔧 ${esc(t.part_name)}` : ''}
                                 ${t.completion_count > 0 ? ` | ✓ Completed ${t.completion_count}x` : ''}
                             </div>
                         </div>
@@ -916,7 +888,6 @@
             </div>`;
         }
 
-        // Add this to handle task editing errors
         async function editTaskFromDashboard(taskId) {
             try {
                 const task = currentTasks.find(t => t.id === taskId);
@@ -935,19 +906,19 @@
                 
                 const locSelect = document.getElementById('taskLocation');
                 locSelect.innerHTML = '<option value="">Select location...</option>' +
-                    currentLocations.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+                    currentLocations.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
                 
                 const locOpt = Array.from(locSelect.options).find(opt => opt.text === task.location);
                 if (locOpt) locSelect.value = locOpt.value;
 
                 const flocSelect = document.getElementById('taskFuncLoc');
                 flocSelect.innerHTML = '<option value="">Select functional location...</option>' +
-                    currentFlocs.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+                    currentFlocs.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
                 if (task.func_loc_id) flocSelect.value = task.func_loc_id;
 
                 const assigneeSelect = document.getElementById('taskAssignee');
                 assigneeSelect.innerHTML = '<option value="">Unassigned</option>' +
-                    currentUsers.filter(u => u.is_active).map(u => `<option value="${u.id}">${u.username} (${u.role})</option>`).join('');
+                    currentUsers.filter(u => u.is_active).map(u => `<option value="${u.id}">${esc(u.username)} (${esc(u.role)})</option>`).join('');
                 if (task.assigned_to) assigneeSelect.value = task.assigned_to;
 
                 document.getElementById('taskPart').value = task.part_name || '';
@@ -980,15 +951,16 @@
                 historyDiv.innerHTML = completions.map(c => `
                     <div class="completion-history-item">
                         <div class="completion-header">
-                            <strong>${c.status === 'completed' ? '✓' : '⊘'} ${c.status}</strong>
+                            <strong>${c.status === 'completed' ? '✓' : '⊘'} ${esc(c.status)}</strong>
                             <span class="completion-date">${new Date(c.completed_at).toLocaleString()}</span>
                         </div>
                         <div class="completion-detail">
-                            Completed by: <strong>${c.completed_by}</strong>
+                            Completed by: <strong>${esc(c.completed_by)}</strong>
                         </div>
-                        ${c.duration_minutes ? `<div class="completion-detail">Duration: ${c.duration_minutes} minutes</div>` : ''}
-                        ${c.labor_hours ? `<div class="completion-detail">Labor: ${c.labor_hours} hours</div>` : ''}
-                        ${c.notes ? `<div class="completion-notes">"${c.notes}"</div>` : ''}
+                        ${c.duration_minutes ? `<div class="completion-detail">Duration: ${esc(c.duration_minutes)} minutes</div>` : ''}
+                        ${c.labor_hours ? `<div class="completion-detail">Labor: ${esc(c.labor_hours)} hours</div>` : ''}
+                        ${c.parts_used ? `<div class="completion-detail">Parts: ${esc(c.parts_used)}</div>` : ''}
+                        ${c.notes ? `<div class="completion-notes">"${esc(c.notes)}"</div>` : ''}
                     </div>
                 `).join('');
             } catch (error) {
@@ -1016,11 +988,11 @@
                 <div class="attachment-item">
                     <div class="attachment-name">
                         <span class="attachment-icon">${getFileIcon(att.file_type)}</span>
-                        <span>${att.original_filename}</span>
+                        <span>${esc(att.original_filename)}</span>
                     </div>
                     <div class="attachment-actions">
                         <button class="btn btn-icon" onclick="downloadAttachment(${att.id})">⬇ Download</button>
-                        <button class="btn btn-icon" onclick="deleteAttachment(${att.id})">🗑 Delete</button>
+                        <button class="btn btn-icon editor-only" onclick="deleteAttachment(${att.id})">🗑 Delete</button>
                     </div>
                 </div>
             `).join('');
@@ -1050,7 +1022,7 @@
                     body: formData
                 });
 
-                if (!response.ok) throw new Error('Upload failed');
+                if (!response.ok) throw new Error(await errorMessage(response, 'Upload failed'));
 
                 const attachment = await response.json();
                 currentAttachments.push(attachment);
@@ -1059,7 +1031,7 @@
                 alert('File uploaded!');
             } catch (error) {
                 console.error('Error uploading:', error);
-                alert('Failed to upload');
+                alert('Failed to upload: ' + error.message);
             }
         }
 
@@ -1071,10 +1043,11 @@
             if (!confirm('Delete this attachment?')) return;
 
             try {
-                await fetch(`${API_BASE}/attachments/${attachmentId}`, { 
+                const response = await fetch(`${API_BASE}/attachments/${attachmentId}`, {
                     method: 'DELETE',
                     credentials: 'include'
                 });
+                if (!response.ok) throw new Error('Delete failed');
                 currentAttachments = currentAttachments.filter(a => a.id !== attachmentId);
                 displayAttachments();
             } catch (error) {
@@ -1103,7 +1076,7 @@
         async function submitCompletion() {
             if (!selectedTaskId) return;
 
-            const completeBtn = event.target;
+            const completeBtn = document.getElementById('submitCompletionBtn');
             if (completeBtn.disabled) return;
             completeBtn.disabled = true;
             completeBtn.classList.add('btn-loading');
@@ -1126,7 +1099,7 @@
                     body: JSON.stringify(data)
                 });
 
-                if (!response.ok) throw new Error('Completion failed');
+                if (!response.ok) throw new Error(await errorMessage(response, 'Completion failed'));
 
                 await loadDashboard();
                 closeCompleteModal();
@@ -1134,7 +1107,7 @@
                 showPage('dashboard');
             } catch (error) {
                 console.error('Error completing task:', error);
-                alert('Failed to complete task');
+                alert('Failed to complete task: ' + error.message);
             } finally {
                 completeBtn.disabled = false;
                 completeBtn.classList.remove('btn-loading');
@@ -1182,14 +1155,14 @@
                     body: JSON.stringify(data)
                 });
 
-                if (!response.ok) throw new Error('Update failed');
+                if (!response.ok) throw new Error(await errorMessage(response, 'Update failed'));
 
                 await loadDashboard();
                 alert('Task updated!');
                 showPage('dashboard');
             } catch (error) {
                 console.error('Error updating:', error);
-                alert('Failed to update task');
+                alert('Failed to update task: ' + error.message);
             } finally {
                 btn.disabled = false;
                 btn.classList.remove('btn-loading');
@@ -1218,195 +1191,18 @@
                     credentials: 'include'
                 });
                 
-                if (!response.ok) throw new Error('Delete failed');
-                
+                if (!response.ok) throw new Error(await errorMessage(response, 'Delete failed'));
+
                 await loadDashboard();
                 alert('Task deleted!');
                 showPage('dashboard');
             } catch (error) {
                 console.error('Error deleting:', error);
-                alert('Failed to delete task');
+                alert('Failed to delete task: ' + error.message);
                 btn.disabled = false;
                 btn.textContent = originalText;
             }
         }
-        async function refreshFlocs() {
-            try {
-                const flocs = await fetch(`${API_BASE}/funclocations`, {credentials: 'include'}).then(r => r.json());
-                currentFlocs = flocs;
-                buildFlocTree(flocs);
-                updateFlocDropdowns();
-            } catch (error) {
-                console.error('Error refreshing:', error);
-            }
-        }
-
-        function buildFlocTree(flocs) {
-            const byId = {};
-            flocs.forEach(f => byId[f.id] = { ...f, children: [] });
-
-            const roots = [];
-            Object.values(byId).forEach(f => {
-                if (f.parent_id && byId[f.parent_id]) {
-                    byId[f.parent_id].children.push(f);
-                } else {
-                    roots.push(f);
-                }
-            });
-
-            const treeDiv = document.getElementById('flocTree');
-            if (roots.length === 0) {
-                treeDiv.innerHTML = '<div class="empty-state">No locations yet</div>';
-                return;
-            }
-
-            function renderNode(node, level = 0) {
-                const indent = level > 0 ? 'tree-node-child' : '';
-                let html = `<div class="${indent} tree-node" onclick="selectFloc(${node.id})" data-id="${node.id}">${node.name}</div>`;
-                node.children.sort((a, b) => a.name.localeCompare(b.name)).forEach(child => {
-                    html += renderNode(child, level + 1);
-                });
-                return html;
-            }
-
-            treeDiv.innerHTML = roots.sort((a, b) => a.name.localeCompare(b.name))
-                .map(r => renderNode(r)).join('');
-        }
-
-        function selectFloc(id) {
-            document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('selected'));
-            document.querySelector(`.tree-node[data-id="${id}"]`).classList.add('selected');
-
-            selectedFlocId = id;
-            const floc = currentFlocs.find(f => f.id === id);
-            if (!floc) return;
-
-            document.getElementById('flocEditSection').innerHTML = `
-                <div class="form-group">
-                    <label>Name</label>
-                    <input type="text" id="editFlocName" value="${floc.name}">
-                </div>
-                <div class="form-group">
-                    <label>Description</label>
-                    <textarea id="editFlocDesc">${floc.description || ''}</textarea>
-                </div>
-                <div class="form-group">
-                    <label>Parent Location</label>
-                    <select id="editFlocParent">
-                        <option value="">(None)</option>
-                        ${currentFlocs.filter(f => f.id !== id).map(f => 
-                            `<option value="${f.id}" ${f.id === floc.parent_id ? 'selected' : ''}>${f.name}</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="btn-group">
-                    <button class="btn btn-primary" onclick="saveFloc()">Save Changes</button>
-                    ${currentUserData.role === 'admin' ? '<button class="btn btn-danger" onclick="deleteFloc()">Delete</button>' : ''}
-                </div>
-            `;
-        }
-
-        function updateFlocDropdowns() {
-            const parentSelect = document.getElementById('newFlocParent');
-            parentSelect.innerHTML = '<option value="">(None)</option>' +
-                currentFlocs.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
-        }
-
-        async function saveFloc() {
-            if (!selectedFlocId) return;
-
-            const data = {
-                name: document.getElementById('editFlocName').value.trim(),
-                description: document.getElementById('editFlocDesc').value || null,
-                parent_id: document.getElementById('editFlocParent').value || null
-            };
-
-            if (!data.name) {
-                alert('Name required');
-                return;
-            }
-
-            try {
-                await fetch(`${API_BASE}/funclocations/${selectedFlocId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify(data)
-                });
-
-                await refreshFlocs();
-                await loadDashboard();
-                alert('Saved!');
-            } catch (error) {
-                console.error('Error saving:', error);
-                alert('Failed to save');
-            }
-        }
-
-        async function deleteFloc() {
-            if (!selectedFlocId) return;
-            
-            const floc = currentFlocs.find(f => f.id === selectedFlocId);
-            const flocName = floc ? floc.name : 'this location';
-            
-            if (!confirm(`Are you sure you want to delete "${flocName}"?\n\nThis action cannot be undone.`)) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE}/funclocations/${selectedFlocId}`, { 
-                    method: 'DELETE',
-                    credentials: 'include'
-                });
-                
-                if (!response.ok) {
-                    const data = await response.json();
-                    alert('Failed: ' + data.message);
-                    return;
-                }
-
-                selectedFlocId = null;
-                await refreshFlocs();
-                await loadDashboard();
-                document.getElementById('flocEditSection').innerHTML = '<p class="empty-state-text">Select a location</p>';
-                alert('Location deleted!');
-            } catch (error) {
-                console.error('Error deleting:', error);
-                alert('Failed to delete location');
-            }
-        }
-
-        async function addFloc() {
-            const data = {
-                name: document.getElementById('newFlocName').value.trim(),
-                description: document.getElementById('newFlocDesc').value || null,
-                parent_id: document.getElementById('newFlocParent').value || null
-            };
-
-            if (!data.name) {
-                alert('Name required');
-                return;
-            }
-
-            try {
-                await fetch(`${API_BASE}/funclocations`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify(data)
-                });
-
-                document.getElementById('newFlocName').value = '';
-                document.getElementById('newFlocDesc').value = '';
-                document.getElementById('newFlocParent').value = '';
-                await refreshFlocs();
-                await loadDashboard();
-            } catch (error) {
-                console.error('Error adding:', error);
-                alert('Failed to add');
-            }
-        }
-
         async function refreshUsers() {
             if (currentUserData.role !== 'admin') {
                 alert('Admin access required');
@@ -1416,17 +1212,21 @@
 
             try {
                 const users = await fetch(`${API_BASE}/api/users`, {credentials: 'include'}).then(r => r.json());
+                currentUsers = users;
 
                 const tbody = document.getElementById('usersTableBody');
                 if (users.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No users</td></tr>';
                 } else {
-                    tbody.innerHTML = users.map(u => `
+                    // You can't change your own role or disable yourself, so there's always an admin
+                    tbody.innerHTML = users.map(u => {
+                        const isSelf = u.id === currentUserData.id;
+                        return `
                         <tr>
-                            <td><strong>${u.username}</strong></td>
-                            <td>${u.email}</td>
+                            <td><strong>${esc(u.username)}</strong>${isSelf ? ' (you)' : ''}</td>
+                            <td>${esc(u.email)}</td>
                             <td>
-                                <select onchange="updateUserRole(${u.id}, this.value)" ${u.username === 'admin' ? 'disabled' : ''}>
+                                <select onchange="updateUserRole(${u.id}, this.value)" ${isSelf ? 'disabled' : ''}>
                                     <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
                                     <option value="technician" ${u.role === 'technician' ? 'selected' : ''}>Technician</option>
                                     <option value="viewer" ${u.role === 'viewer' ? 'selected' : ''}>Viewer</option>
@@ -1438,15 +1238,16 @@
                                 </span>
                             </td>
                             <td>
-                                ${u.username !== 'admin' ? `
+                                ${!isSelf ? `
                                     <button class="btn btn-secondary btn-small" onclick="toggleUserStatus(${u.id}, ${!u.is_active})">
                                         ${u.is_active ? 'Disable' : 'Enable'}
                                     </button>
-                                ` : '<span class="protected-user">Protected</span>'}
-                                <button class="btn btn-secondary btn-small" onclick="resetUserPassword(${u.id}, '${u.username}')">Reset Password</button>
+                                ` : ''}
+                                <button class="btn btn-secondary btn-small" onclick="resetUserPassword(${u.id})">Reset Password</button>
                             </td>
                         </tr>
-                    `).join('');
+                    `;
+                    }).join('');
                 }
             } catch (error) {
                 console.error('Error loading users:', error);
@@ -1461,19 +1262,19 @@
             }
 
             try {
-                await fetch(`${API_BASE}/api/users/${userId}`, {
+                const response = await fetch(`${API_BASE}/api/users/${userId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({ role: newRole })
                 });
+                if (!response.ok) throw new Error(await errorMessage(response, 'Update failed'));
                 alert('Role updated');
-                refreshUsers();
             } catch (error) {
                 console.error('Error updating:', error);
-                alert('Failed to update');
-                refreshUsers();
+                alert('Failed to update: ' + error.message);
             }
+            refreshUsers();
         }
 
         async function toggleUserStatus(userId, newStatus) {
@@ -1481,17 +1282,18 @@
             if (!confirm(`${action} this user?`)) return;
 
             try {
-                await fetch(`${API_BASE}/api/users/${userId}`, {
+                const response = await fetch(`${API_BASE}/api/users/${userId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({ is_active: newStatus })
                 });
+                if (!response.ok) throw new Error(await errorMessage(response, 'Update failed'));
                 alert(`User ${action}d`);
                 refreshUsers();
             } catch (error) {
                 console.error('Error updating:', error);
-                alert('Failed to update');
+                alert('Failed to update: ' + error.message);
             }
         }
 
@@ -1515,8 +1317,7 @@
                 });
 
                 if (!response.ok) {
-                    const data = await response.json();
-                    alert('Failed: ' + (data.message || data.error));
+                    alert('Failed: ' + await errorMessage(response, 'Could not create user'));
                     return;
                 }
 
@@ -1532,8 +1333,10 @@
             }
         }
 
-        async function resetUserPassword(userId, username) {
-            const password = prompt(`Enter a new password for "${username}":`);
+        async function resetUserPassword(userId) {
+            const user = currentUsers.find(u => u.id === userId);
+            const username = user ? user.username : 'this user';
+            const password = prompt(`Enter a new password for "${username}" (at least 8 characters):`);
             if (!password) return;
 
             try {
@@ -1544,11 +1347,11 @@
                     body: JSON.stringify({ password })
                 });
 
-                if (!response.ok) throw new Error('Reset failed');
+                if (!response.ok) throw new Error(await errorMessage(response, 'Reset failed'));
                 alert(`Password reset for "${username}"`);
             } catch (error) {
                 console.error('Error resetting password:', error);
-                alert('Failed to reset password');
+                alert('Failed to reset password: ' + error.message);
             }
         }
 
@@ -1593,8 +1396,8 @@
             }
             
             for (let day = 1; day <= daysInMonth; day++) {
-                const date = new Date(year, month, day);
-                const dateStr = date.toISOString().split('T')[0];
+                // Build the date string directly; toISOString() shifts to UTC and can land on the wrong day
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const isToday = isCurrentMonth && day === todayDate;
                 
                 const dayTasks = currentTasks.filter(t => t.next_run.split('T')[0] === dateStr);
@@ -1604,7 +1407,7 @@
                 
                 dayTasks.forEach(task => {
                     const isOverdue = task.status === 'overdue';
-                    html += `<div class="calendar-task ${isOverdue ? 'overdue' : ''}" onclick="editTaskFromDashboard(${task.id})" title="${task.name} - ${task.location}">${task.name}</div>`;
+                    html += `<div class="calendar-task ${isOverdue ? 'overdue' : ''}" onclick="editTaskFromDashboard(${task.id})" title="${esc(task.name)} - ${esc(task.location)}">${esc(task.name)}</div>`;
                 });
                 
                 html += '</div>';
@@ -1619,27 +1422,64 @@
             document.getElementById('calendarView').innerHTML = html;
         }
 
-        function showAddLocationModal() {
+        function descendantFlocIds(flocId) {
+            const ids = [];
+            currentFlocs.filter(f => f.parent_id === flocId).forEach(child => {
+                ids.push(child.id, ...descendantFlocIds(child.id));
+            });
+            return ids;
+        }
+
+        // Shared by add and edit: fills the form and shows the modal
+        function openLocationModal({ title, subtitle, buttonText, name, description, parentId, excludeIds }) {
+            document.getElementById('locationModalTitle').textContent = title;
+            document.getElementById('locationModalSubtitle').textContent = subtitle;
+            document.getElementById('locationModalSaveBtn').textContent = buttonText;
+
+            // A location can't be moved under itself or its own sub-locations
             const parentSelect = document.getElementById('modalFlocParent');
             parentSelect.innerHTML = '<option value="">Choose parent...</option>' +
-                currentFlocs.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
-            
-            document.getElementById('modalFlocName').value = '';
-            document.getElementById('modalFlocDesc').value = '';
-            
-            // Check if a functional location is currently selected
-            if (selectedFlocId) {
-                // Automatically set to child mode with the selected location as parent
-                document.querySelector('input[name="parentType"][value="child"]').checked = true;
-                document.getElementById('parentSelectContainer').style.display = 'block';
-                document.getElementById('modalFlocParent').value = selectedFlocId;
-            } else {
-                // No selection - default to top level
-                document.querySelector('input[name="parentType"][value="none"]').checked = true;
-                document.getElementById('parentSelectContainer').style.display = 'none';
-            }
-            
+                currentFlocs.filter(f => !excludeIds.includes(f.id))
+                    .map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
+
+            document.getElementById('modalFlocName').value = name;
+            document.getElementById('modalFlocDesc').value = description;
+
+            const isChild = Boolean(parentId);
+            document.querySelector(`input[name="parentType"][value="${isChild ? 'child' : 'none'}"]`).checked = true;
+            document.getElementById('parentSelectContainer').style.display = isChild ? 'block' : 'none';
+            parentSelect.value = isChild ? parentId : '';
+
             document.getElementById('addLocationModal').classList.add('show');
+        }
+
+        function showAddLocationModal() {
+            editingFlocId = null;
+            // Default to a sub-location of the selected location, if any
+            openLocationModal({
+                title: '➕ Create Functional Location',
+                subtitle: 'Add a new location to organize your maintenance tasks',
+                buttonText: '✓ Create',
+                name: '',
+                description: '',
+                parentId: selectedFlocId,
+                excludeIds: []
+            });
+        }
+
+        function showEditLocationModal(flocId) {
+            const floc = currentFlocs.find(f => f.id === flocId);
+            if (!floc) return;
+            editingFlocId = flocId;
+            openLocationModal({
+                title: '✏️ Edit Functional Location',
+                subtitle: 'Rename this location or move it under a different parent',
+                buttonText: '✓ Save',
+                name: floc.name,
+                description: floc.description || '',
+                parentId: floc.parent_id,
+                excludeIds: [flocId, ...descendantFlocIds(flocId)]
+            });
         }
 
         function toggleParentSelect(show) {
@@ -1659,13 +1499,11 @@
             document.getElementById('addLocationModal').classList.remove('show');
         }
 
-        async function addLocationFromModal() {
+        async function saveLocationFromModal() {
             const name = document.getElementById('modalFlocName').value.trim();
             const desc = document.getElementById('modalFlocDesc').value || null;
             const isChild = document.querySelector('input[name="parentType"][value="child"]').checked;
             const parentId = isChild ? document.getElementById('modalFlocParent').value : null;
-
-            console.log('Adding location:', { name, desc, isChild, parentId });
 
             if (!name) {
                 alert('Name required');
@@ -1683,57 +1521,38 @@
             createBtn.disabled = true;
             createBtn.classList.add('btn-loading');
             const originalText = createBtn.textContent;
-            createBtn.textContent = 'Creating';
+            createBtn.textContent = editingFlocId ? 'Saving' : 'Creating';
 
             const payload = {
                 name: name,
                 description: desc,
                 parent_id: parentId ? parseInt(parentId) : null
             };
-            
-            console.log('Sending payload:', payload);
 
             try {
-                const response = await fetch(`${API_BASE}/funclocations`, {
-                    method: 'POST',
+                const response = await fetch(
+                    editingFlocId ? `${API_BASE}/funclocations/${editingFlocId}` : `${API_BASE}/funclocations`, {
+                    method: editingFlocId ? 'PUT' : 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify(payload)
                 });
 
-                console.log('Response status:', response.status);
-                console.log('Response headers:', response.headers);
-
-                const contentType = response.headers.get('content-type');
-                console.log('Content-Type:', contentType);
-                
-                if (!contentType || !contentType.includes('application/json')) {
-                    const text = await response.text();
-                    console.error('Non-JSON response:', text.substring(0, 500));
-                    throw new Error(`Server error: ${response.status}. Check browser console for details.`);
+                if (!response.ok) {
+                    throw new Error(await errorMessage(response, `Server error: ${response.status}`));
                 }
 
                 const data = await response.json();
-                console.log('Response data:', data);
-
-                if (!response.ok) {
-                    throw new Error(data.message || data.error || 'Failed to add location');
-                }
-
                 if (data.parent_id) {
                     expandedTreeNodes.add(data.parent_id);
                 }
 
                 closeAddLocationModal();
                 await loadDashboard();
-                
-                selectedFlocId = data.id;
                 selectFlocFromTree(data.id);
-                
-                alert('Location created!');
             } catch (error) {
-                console.error('Error adding location:', error);
-                alert('Failed to add location: ' + error.message);
+                console.error('Error saving location:', error);
+                alert('Failed to save location: ' + error.message);
             } finally {
                 createBtn.disabled = false;
                 createBtn.classList.remove('btn-loading');
@@ -1751,7 +1570,9 @@
 
         function escapeCSV(field) {
             if (field === null || field === undefined) return '';
-            const str = String(field);
+            let str = String(field);
+            // Stop spreadsheet apps from running user text as a formula
+            if (/^[=+\-@\t\r]/.test(str)) str = "'" + str;
             if (str.includes(',') || str.includes('"') || str.includes('\n')) {
                 return `"${str.replace(/"/g, '""')}"`;
             }
@@ -1808,21 +1629,9 @@
 
         async function exportCompletionHistory() {
             try {
-                // Fetch all completion records for all tasks
-                const completionsPromises = currentTasks.map(task => 
-                    fetch(`${API_BASE}/tasks/${task.id}/completions`, {
-                        credentials: 'include'
-                    }).then(r => r.json()).then(completions => 
-                        completions.map(c => ({
-                            taskName: task.name,
-                            taskLocation: task.location,
-                            ...c
-                        }))
-                    ).catch(() => [])
-                );
-                
-                const allCompletionsArrays = await Promise.all(completionsPromises);
-                const allCompletions = allCompletionsArrays.flat();
+                const response = await fetch(`${API_BASE}/api/completions`, {credentials: 'include'});
+                if (!response.ok) throw new Error('Failed to load completions');
+                const allCompletions = await response.json();
                 
                 if (allCompletions.length === 0) {
                     alert('No completion history to export');
@@ -1834,8 +1643,8 @@
                                 'Status', 'Duration (min)', 'Labor Hours', 'Parts Used', 'Notes'];
                 
                 const rows = allCompletions.map(c => [
-                    c.taskName,
-                    c.taskLocation,
+                    c.task_name,
+                    c.task_location,
                     c.completed_by,
                     new Date(c.completed_at).toLocaleString(),
                     new Date(c.scheduled_date).toLocaleDateString(),
@@ -1929,36 +1738,12 @@
 
         async function createTaskFromModal() {
             const flocId = parseInt(document.getElementById('addTaskModal').getAttribute('data-floc-id'));
-            
-            // Auto-create a default location if none exists
-            if (currentLocations.length === 0) {
-                try {
-                    const response = await fetch(`${API_BASE}/locations`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include',
-                        body: JSON.stringify({ name: 'Default Location' })
-                    });
-                    
-                    if (response.ok) {
-                        const newLocation = await response.json();
-                        currentLocations.push(newLocation);
-                    } else {
-                        alert('Please create a physical location first from the admin menu');
-                        return;
-                    }
-                } catch (error) {
-                    console.error('Error creating default location:', error);
-                    alert('Failed to create default location');
-                    return;
-                }
-            }
-            
+
+            // The server assigns the default physical location
             const data = {
                 name: document.getElementById('modalTaskName').value.trim(),
                 frequency_days: parseInt(document.getElementById('modalTaskFreq').value),
                 next_run: document.getElementById('modalTaskDate').value,
-                location_id: currentLocations[0].id, // Use first available location
                 func_loc_id: flocId,
                 assigned_to: null, // Tasks created unassigned
                 part_name: document.getElementById('modalTaskPart').value || '',
@@ -1989,18 +1774,18 @@
                     body: JSON.stringify(data)
                 });
 
-                if (!response.ok) throw new Error('Failed to create task');
+                if (!response.ok) throw new Error(await errorMessage(response, 'Failed to create task'));
 
                 closeAddTaskModal();
                 await loadDashboard();
-                
+
                 // Reselect the functional location to refresh the view
                 selectFlocFromTree(flocId);
-                
+
                 alert('Task created successfully!');
             } catch (error) {
                 console.error('Error creating task:', error);
-                alert('Failed to create task');
+                alert('Failed to create task: ' + error.message);
             }
         }
 
