@@ -928,6 +928,13 @@ textarea {
     display: none;
 }
 
+/* Role-based controls (body[data-role] is set after login). The server
+   enforces the same rules; this only hides buttons that would fail. */
+body:not([data-role="admin"]) .admin-only,
+body:not([data-role="admin"]):not([data-role="technician"]) .editor-only {
+    display: none !important;
+}
+
 .btn-loading {
     opacity: 0.6;
     cursor: not-allowed;
