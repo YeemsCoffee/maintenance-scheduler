@@ -928,6 +928,24 @@ textarea {
     display: none;
 }
 
+/* Temporary password dialog */
+.temp-password-row {
+    display: flex;
+    gap: 8px;
+}
+
+.temp-password-value {
+    flex: 1;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 18px;
+    letter-spacing: 1px;
+}
+
+.user-pending {
+    font-size: 12px;
+    color: #92400e;
+}
+
 /* Role-based controls (body[data-role] is set after login). The server
    enforces the same rules; this only hides buttons that would fail. */
 body:not([data-role="admin"]) .admin-only,

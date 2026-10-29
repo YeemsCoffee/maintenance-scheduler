@@ -131,6 +131,23 @@
         .form-section.active {
             display: block;
         }
+
+        .change-title {
+            font-size: 20px;
+            color: #1f2937;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .change-intro {
+            margin: 0 0 20px;
+        }
+
+        .field-help {
+            margin-top: 4px;
+            text-align: left;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -144,11 +161,11 @@
         <div id="successMessage" class="success-message"></div>
 
         <!-- Login Form -->
-        <div id="loginForm" class="form-section active">
+        <div id="loginForm" class="form-section">
             <form onsubmit="handleLogin(event)">
                 <div class="form-group">
-                    <label for="loginUsername">Username</label>
-                    <input type="text" id="loginUsername" required autocomplete="username">
+                    <label for="loginEmail">Email</label>
+                    <input type="text" id="loginEmail" required autocomplete="username" placeholder="you@example.com">
                 </div>
 
                 <div class="form-group">
@@ -159,6 +176,32 @@
                 <button type="submit" class="btn" id="loginBtn">Login</button>
             </form>
             <p class="login-help">Need an account or forgot your password? Ask an administrator.</p>
+        </div>
+
+        <!-- Set / Change Password Form -->
+        <div id="changeForm" class="form-section">
+            <h2 class="change-title" id="changeTitle">Set a new password</h2>
+            <p class="login-help change-intro" id="changeIntro"></p>
+            <form onsubmit="handleChangePassword(event)">
+                <div class="form-group" id="currentPasswordGroup">
+                    <label for="currentPassword">Current password</label>
+                    <input type="password" id="currentPassword" required autocomplete="current-password">
+                </div>
+
+                <div class="form-group">
+                    <label for="newPassword">New password</label>
+                    <input type="password" id="newPassword" required minlength="8" autocomplete="new-password">
+                    <p class="login-help field-help">At least 8 characters</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm new password</label>
+                    <input type="password" id="confirmPassword" required autocomplete="new-password">
+                </div>
+
+                <button type="submit" class="btn" id="changeBtn">Save password</button>
+            </form>
+            <p class="login-help"><a href="#" id="changeExitLink"></a></p>
         </div>
     </div>
 
@@ -182,11 +225,44 @@
             document.getElementById('successMessage').style.display = 'none';
         }
 
+        function showSection(id) {
+            document.querySelectorAll('.form-section').forEach(f => f.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        // forced: signed in with a temporary password and must pick a new one.
+        // knownPassword: the password just typed at login, so we don't ask for it twice.
+        function showChangeForm(forced, knownPassword) {
+            document.getElementById('changeTitle').textContent = forced ? 'Set a new password' : 'Change your password';
+            document.getElementById('changeIntro').textContent = forced
+                ? "You're signed in with a temporary password. Choose your own password to continue."
+                : '';
+
+            const current = document.getElementById('currentPassword');
+            current.value = knownPassword || '';
+            document.getElementById('currentPasswordGroup').style.display = knownPassword ? 'none' : 'block';
+
+            const exitLink = document.getElementById('changeExitLink');
+            exitLink.textContent = forced ? 'Log out' : 'Cancel';
+            exitLink.onclick = async (e) => {
+                e.preventDefault();
+                if (forced) {
+                    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+                    window.location.href = '/login.html';
+                } else {
+                    window.location.href = '/';
+                }
+            };
+
+            showSection('changeForm');
+            document.getElementById(knownPassword ? 'newPassword' : 'currentPassword').focus();
+        }
+
         async function handleLogin(event) {
             event.preventDefault();
             hideMessages();
 
-            const username = document.getElementById('loginUsername').value;
+            const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value;
             const btn = document.getElementById('loginBtn');
 
@@ -200,28 +276,95 @@
                         'Content-Type': 'application/json'
                     },
                     credentials: 'include',
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify({ email, password })
                 });
 
                 const data = await response.json();
 
-                if (response.ok) {
-                    showSuccess('Login successful! Redirecting...');
-                    setTimeout(() => {
-                        window.location.href = '/';
-                    }, 1000);
+                if (response.ok && data.must_change_password) {
+                    showChangeForm(true, password);
+                } else if (response.ok) {
+                    window.location.href = '/';
                 } else {
                     showError(data.error || 'Login failed');
-                    btn.disabled = false;
-                    btn.textContent = 'Login';
                 }
             } catch (error) {
                 console.error('Login error:', error);
                 showError('Connection error. Please try again.');
+            } finally {
                 btn.disabled = false;
                 btn.textContent = 'Login';
             }
         }
+
+        async function handleChangePassword(event) {
+            event.preventDefault();
+            hideMessages();
+
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const btn = document.getElementById('changeBtn');
+
+            if (newPassword !== confirmPassword) {
+                showError('The new passwords do not match');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+
+            try {
+                const response = await fetch('/api/auth/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess('Password saved! Redirecting...');
+                    setTimeout(() => { window.location.href = '/'; }, 800);
+                    return;
+                }
+                showError(data.message || data.error || 'Could not change password');
+                // If the remembered current password was rejected, let them type it
+                if (data.error === 'wrong_password') {
+                    document.getElementById('currentPasswordGroup').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Change password error:', error);
+                showError('Connection error. Please try again.');
+            }
+            btn.disabled = false;
+            btn.textContent = 'Save password';
+        }
+
+        // Decide which form to show: login, a forced password change, or a
+        // voluntary change (Change Password button, /login.html?change=1)
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/auth/me', { credentials: 'include' });
+                if (response.ok) {
+                    const me = await response.json();
+                    if (me.must_change_password) {
+                        showChangeForm(true);
+                        return;
+                    }
+                    if (new URLSearchParams(window.location.search).has('change')) {
+                        showChangeForm(false);
+                        return;
+                    }
+                    window.location.href = '/';
+                    return;
+                }
+            } catch (error) {
+                console.error('Session check failed:', error);
+            }
+            showSection('loginForm');
+            document.getElementById('loginEmail').focus();
+        });
     </script>
 </body>
 </html>
