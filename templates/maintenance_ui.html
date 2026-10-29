@@ -23,6 +23,7 @@
                     <button class="btn btn-secondary btn-small" onclick="showPage('workload')" id="workloadBtn">👥 Workload</button>
                     <button class="btn btn-secondary btn-small" onclick="showPage('calendar')">📅 Calendar</button>
                     <button class="btn btn-secondary btn-small admin-only" onclick="showPage('users')">Manage Users</button>
+                    <button class="btn btn-secondary btn-small" onclick="window.location.href = '/login.html?change=1'">Change Password</button>
                     <button class="btn btn-secondary btn-small" onclick="handleLogout()">Logout</button>
                 </div>
             </div>
@@ -297,20 +298,11 @@
 
             <div class="card">
                 <h2>➕ Add User</h2>
+                <p class="empty-state-text">You'll get a temporary password to give them. They'll choose their own password the first time they log in.</p>
                 <div class="two-col-grid">
-                    <div class="form-group">
-                        <label>Username *</label>
-                        <input type="text" id="newUserUsername" placeholder="e.g., jsmith">
-                    </div>
                     <div class="form-group">
                         <label>Email *</label>
-                        <input type="email" id="newUserEmail" placeholder="e.g., jsmith@example.com">
-                    </div>
-                </div>
-                <div class="two-col-grid">
-                    <div class="form-group">
-                        <label>Password *</label>
-                        <input type="password" id="newUserPassword" placeholder="At least 8 characters" autocomplete="new-password">
+                        <input type="email" id="newUserEmail" placeholder="e.g., jsmith@example.com" autocomplete="off">
                     </div>
                     <div class="form-group">
                         <label>Role</label>
@@ -321,7 +313,30 @@
                         </select>
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="addUser()">Add User</button>
+                <button class="btn btn-primary" id="addUserBtn" onclick="addUser()">Add User</button>
+            </div>
+        </div>
+
+        <!-- Temporary Password Modal (shown once after adding a user or resetting a password) -->
+        <div id="tempPasswordModal" class="modal-overlay">
+            <div class="modal-dialog">
+                <div class="modal-header">
+                    <h2 id="tempPasswordTitle">🔑 Temporary Password</h2>
+                    <p id="tempPasswordIntro"></p>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Temporary password</label>
+                        <div class="temp-password-row">
+                            <input type="text" id="tempPasswordValue" readonly class="temp-password-value">
+                            <button class="btn btn-secondary" id="copyTempPasswordBtn" onclick="copyTempPassword()">Copy</button>
+                        </div>
+                    </div>
+                    <p class="empty-state-text">This password won't be shown again. They'll be asked to choose a new password when they log in.</p>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="closeTempPasswordModal()">Done</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -479,6 +494,11 @@
                     return false;
                 }
                 currentUserData = await response.json();
+                // An admin reset their password while they were signed in
+                if (currentUserData.must_change_password) {
+                    window.location.href = `${API_BASE}/login.html`;
+                    return false;
+                }
                 document.getElementById('currentUser').textContent = currentUserData.username;
                 document.getElementById('currentRole').textContent = currentUserData.role;
                 // Drives the .admin-only / .editor-only visibility rules in styles.css
@@ -1236,14 +1256,15 @@
                                 <span class="user-status ${u.is_active ? 'active' : 'inactive'}">
                                     ${u.is_active ? '✓ Active' : '✗ Disabled'}
                                 </span>
+                                ${u.must_change_password ? '<br><span class="user-pending">Hasn\'t set a password yet</span>' : ''}
                             </td>
                             <td>
                                 ${!isSelf ? `
                                     <button class="btn btn-secondary btn-small" onclick="toggleUserStatus(${u.id}, ${!u.is_active})">
                                         ${u.is_active ? 'Disable' : 'Enable'}
                                     </button>
-                                ` : ''}
-                                <button class="btn btn-secondary btn-small" onclick="resetUserPassword(${u.id})">Reset Password</button>
+                                    <button class="btn btn-secondary btn-small" onclick="resetUserPassword(${u.id})">Reset Password</button>
+                                ` : '<span class="protected-user">Use Change Password</span>'}
                             </td>
                         </tr>
                     `;
@@ -1297,23 +1318,51 @@
             }
         }
 
+        function showTempPasswordModal(title, intro, password) {
+            document.getElementById('tempPasswordTitle').textContent = title;
+            document.getElementById('tempPasswordIntro').textContent = intro;
+            document.getElementById('tempPasswordValue').value = password;
+            document.getElementById('copyTempPasswordBtn').textContent = 'Copy';
+            document.getElementById('tempPasswordModal').classList.add('show');
+            document.getElementById('tempPasswordValue').select();
+        }
+
+        async function copyTempPassword() {
+            const input = document.getElementById('tempPasswordValue');
+            input.select();
+            try {
+                await navigator.clipboard.writeText(input.value);
+            } catch {
+                document.execCommand('copy');  // Older browsers / non-HTTPS
+            }
+            document.getElementById('copyTempPasswordBtn').textContent = 'Copied ✓';
+        }
+
+        function closeTempPasswordModal() {
+            // Don't leave the password sitting in the page
+            document.getElementById('tempPasswordValue').value = '';
+            document.getElementById('tempPasswordModal').classList.remove('show');
+        }
+
         async function addUser() {
-            const username = document.getElementById('newUserUsername').value.trim();
             const email = document.getElementById('newUserEmail').value.trim();
-            const password = document.getElementById('newUserPassword').value;
             const role = document.getElementById('newUserRole').value;
 
-            if (!username || !email || !password) {
-                alert('Username, email and password are required');
+            if (!email) {
+                alert('Enter an email address');
                 return;
             }
+
+            const btn = document.getElementById('addUserBtn');
+            if (btn.disabled) return;
+            btn.disabled = true;
 
             try {
                 const response = await fetch(`${API_BASE}/api/users`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ username, email, password, role })
+                    body: JSON.stringify({ email, role })
                 });
 
                 if (!response.ok) {
@@ -1321,34 +1370,40 @@
                     return;
                 }
 
-                document.getElementById('newUserUsername').value = '';
+                const user = await response.json();
                 document.getElementById('newUserEmail').value = '';
-                document.getElementById('newUserPassword').value = '';
                 document.getElementById('newUserRole').value = 'technician';
-                alert(`User "${username}" created`);
                 refreshUsers();
+                showTempPasswordModal(
+                    '✓ User Added',
+                    `Give this temporary password to ${user.email}. They log in with their email.`,
+                    user.temp_password
+                );
             } catch (error) {
                 console.error('Error adding user:', error);
                 alert('Failed to add user');
+            } finally {
+                btn.disabled = false;
             }
         }
 
         async function resetUserPassword(userId) {
             const user = currentUsers.find(u => u.id === userId);
-            const username = user ? user.username : 'this user';
-            const password = prompt(`Enter a new password for "${username}" (at least 8 characters):`);
-            if (!password) return;
+            const email = user ? user.email : 'this user';
+            if (!confirm(`Reset the password for ${email}?\n\nTheir current password will stop working and you'll get a temporary one to give them.`)) return;
 
             try {
                 const response = await fetch(`${API_BASE}/api/users/${userId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ password })
+                    body: JSON.stringify({ reset_password: true })
                 });
 
                 if (!response.ok) throw new Error(await errorMessage(response, 'Reset failed'));
-                alert(`Password reset for "${username}"`);
+                const data = await response.json();
+                refreshUsers();
+                showTempPasswordModal('🔑 Password Reset', `Give this temporary password to ${email}.`, data.temp_password);
             } catch (error) {
                 console.error('Error resetting password:', error);
                 alert('Failed to reset password: ' + error.message);

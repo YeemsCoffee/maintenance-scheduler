@@ -5,8 +5,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
-from sqlalchemy import desc
+from sqlalchemy import desc, func, inspect, text
 import os
+import re
 import secrets
 import sys
 
@@ -62,6 +63,11 @@ ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt', 'png', 'jpg', 'jpeg', 'gif', 
 ROLES = ('admin', 'technician', 'viewer')
 EDITOR_ROLES = ('admin', 'technician')
 MIN_PASSWORD_LENGTH = 8
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+# No look-alike characters (0/O, 1/l/I) so temporary passwords are easy to read out
+TEMP_PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+# The only endpoints a user with a temporary password can reach
+PASSWORD_CHANGE_ENDPOINTS = {'get_current_user', 'change_password'}
 
 def file_extension(filename):
     return filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
@@ -79,6 +85,7 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
     notification_days_ahead = db.Column(db.Integer, default=3)
+    must_change_password = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
     assigned_tasks = db.relationship('MaintenanceTask', backref='assignee', lazy=True)
     completed_tasks = db.relationship('TaskCompletion', backref='completed_by_user', lazy=True)
@@ -191,6 +198,9 @@ def login_required(f):
             session.clear()
             return error('unauthorized', 'Please login', 401)
         g.user = user
+        # Someone on a temporary password must set their own before doing anything else
+        if user.must_change_password and request.endpoint not in PASSWORD_CHANGE_ENDPOINTS:
+            return error('password_change_required', 'Please set a new password first', 403)
         return f(*args, **kwargs)
     return decorated_function
 
@@ -231,6 +241,18 @@ def validate_password(password):
     if not password or len(password) < MIN_PASSWORD_LENGTH:
         return f'Password must be at least {MIN_PASSWORD_LENGTH} characters'
     return None
+
+def generate_temp_password():
+    return ''.join(secrets.choice(TEMP_PASSWORD_ALPHABET) for _ in range(12))
+
+def username_from_email(email):
+    """Display name for a new user: the part of the email before @, made unique"""
+    base = re.sub(r'[^a-z0-9._-]', '', email.split('@')[0].lower())[:70] or 'user'
+    username, suffix = base, 2
+    while User.query.filter_by(username=username).first():
+        username = f'{base}{suffix}'
+        suffix += 1
+    return username
 
 def get_default_location():
     """Tasks are organised by functional location; the physical location
@@ -382,14 +404,20 @@ def check_upcoming_tasks():
 @app.route('/api/auth/login', methods=['POST'])
 def login():
     data = request.get_json(silent=True) or {}
+    # People sign in with their email; older accounts (e.g. 'admin') can still use a username
+    identifier = str(data.get('email') or data.get('username') or '').strip()
+    password = data.get('password') or ''
 
-    if not data.get('username') or not data.get('password'):
-        return jsonify({'error': 'Missing username or password'}), 400
+    if not identifier or not password:
+        return jsonify({'error': 'Enter your email and password'}), 400
 
-    user = User.query.filter_by(username=data['username']).first()
+    if '@' in identifier:
+        user = User.query.filter(func.lower(User.email) == identifier.lower()).first()
+    else:
+        user = User.query.filter_by(username=identifier).first()
 
-    if not user or not user.check_password(data['password']):
-        return jsonify({'error': 'Invalid username or password'}), 401
+    if not user or not user.check_password(password):
+        return jsonify({'error': 'Invalid email or password'}), 401
 
     if not user.is_active:
         return jsonify({'error': 'Account is disabled'}), 403
@@ -399,7 +427,13 @@ def login():
     session.permanent = True
     session['user_id'] = user.id
 
-    return jsonify({'id': user.id, 'username': user.username, 'email': user.email, 'role': user.role}), 200
+    return jsonify({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'role': user.role,
+        'must_change_password': user.must_change_password
+    }), 200
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
@@ -416,8 +450,29 @@ def get_current_user():
         'username': user.username,
         'email': user.email,
         'role': user.role,
+        'must_change_password': user.must_change_password,
         'unread_notifications': unread_count
     }), 200
+
+@app.route('/api/auth/change-password', methods=['POST'])
+@login_required
+def change_password():
+    data = request.get_json(silent=True) or {}
+    current_password = data.get('current_password') or ''
+    new_password = data.get('new_password') or ''
+
+    if not g.user.check_password(current_password):
+        return error('wrong_password', 'Your current password is incorrect')
+    password_error = validate_password(new_password)
+    if password_error:
+        return error('weak_password', password_error)
+    if new_password == current_password:
+        return error('same_password', 'Choose a password different from your current one')
+
+    g.user.set_password(new_password)
+    g.user.must_change_password = False
+    db.session.commit()
+    return jsonify({'message': 'Password changed'}), 200
 
 # User management routes
 @app.route('/api/users', methods=['GET'])
@@ -430,6 +485,7 @@ def get_users():
         'email': u.email,
         'role': u.role,
         'is_active': u.is_active,
+        'must_change_password': u.must_change_password,
         'created_at': u.created_at.isoformat(),
         'notification_days_ahead': u.notification_days_ahead
     } for u in users])
@@ -437,32 +493,33 @@ def get_users():
 @app.route('/api/users', methods=['POST'])
 @admin_required
 def create_user():
+    """Add a user by email. Returns a one-time temporary password for the admin to pass on."""
     data = request.get_json(silent=True) or {}
-    username = (data.get('username') or '').strip()
-    email = (data.get('email') or '').strip()
-    password = data.get('password') or ''
+    email = str(data.get('email') or '').strip()
     role = data.get('role', 'technician')
 
-    if not username or not email or not password:
-        return error('missing_fields', 'Username, email and password are required')
-    if len(username) > 80 or len(email) > 120:
-        return error('too_long', 'Username or email is too long')
+    if not EMAIL_RE.match(email):
+        return error('invalid_email', 'Enter a valid email address')
+    if len(email) > 120:
+        return error('too_long', 'Email is too long')
     if role not in ROLES:
         return error('invalid_role', 'Invalid role')
-    password_error = validate_password(password)
-    if password_error:
-        return error('weak_password', password_error)
-    if User.query.filter_by(username=username).first():
-        return error('username_taken', 'Username already exists')
-    if User.query.filter_by(email=email).first():
-        return error('email_taken', 'Email already exists')
+    if User.query.filter(func.lower(User.email) == email.lower()).first():
+        return error('email_taken', 'A user with that email already exists')
 
-    user = User(username=username, email=email, role=role)
-    user.set_password(password)
+    temp_password = generate_temp_password()
+    user = User(username=username_from_email(email), email=email, role=role, must_change_password=True)
+    user.set_password(temp_password)
     db.session.add(user)
     db.session.commit()
 
-    return jsonify({'id': user.id, 'username': user.username, 'email': user.email, 'role': user.role}), 201
+    return jsonify({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'role': user.role,
+        'temp_password': temp_password
+    }), 201
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
 @login_required
@@ -477,6 +534,7 @@ def update_user(user_id):
 
     # Only admins can change roles, status and passwords. Admins can't
     # demote or disable themselves, so there is always an active admin.
+    temp_password = None
     if is_admin:
         if 'role' in data and data['role'] != user.role:
             if data['role'] not in ROLES:
@@ -488,11 +546,12 @@ def update_user(user_id):
             if is_self and not data['is_active']:
                 return error('forbidden', "You can't disable your own account")
             user.is_active = bool(data['is_active'])
-        if data.get('password'):
-            password_error = validate_password(data['password'])
-            if password_error:
-                return error('weak_password', password_error)
-            user.set_password(data['password'])
+        if data.get('reset_password'):
+            if is_self:
+                return error('forbidden', 'Use Change Password for your own account')
+            temp_password = generate_temp_password()
+            user.set_password(temp_password)
+            user.must_change_password = True
 
     if 'notification_days_ahead' in data:
         days, err = parse_int(data['notification_days_ahead'], 'Notification days', minimum=1)
@@ -501,7 +560,10 @@ def update_user(user_id):
         user.notification_days_ahead = min(days, 30)
 
     db.session.commit()
-    return jsonify({'message': 'User updated'}), 200
+    response = {'message': 'User updated'}
+    if temp_password:
+        response['temp_password'] = temp_password
+    return jsonify(response), 200
 
 # Notification routes
 @app.route('/api/notifications', methods=['GET'])
@@ -546,8 +608,11 @@ def mark_all_notifications_read():
 # Page routes
 @app.route('/')
 def index():
-    if 'user_id' not in session:
+    user = db.session.get(User, session['user_id']) if 'user_id' in session else None
+    if not user or not user.is_active:
         return redirect(url_for('login_page'))
+    if user.must_change_password:
+        return redirect(url_for('login_page', change=1))
     return render_template('maintenance_ui.html')
 
 @app.route('/login.html')
@@ -933,25 +998,38 @@ def get_workload():
     return jsonify(workload)
 
 # Initialize database and scheduler
+def add_missing_columns():
+    """create_all() doesn't add columns to existing tables, so add new ones here.
+    IF NOT EXISTS keeps this safe when several gunicorn workers start at once."""
+    columns = {c['name'] for c in inspect(db.engine).get_columns('users')}
+    if 'must_change_password' not in columns:
+        if_not_exists = 'IF NOT EXISTS ' if db.engine.dialect.name == 'postgresql' else ''
+        with db.engine.begin() as conn:
+            conn.execute(text(f'ALTER TABLE users ADD COLUMN {if_not_exists}'
+                              'must_change_password BOOLEAN NOT NULL DEFAULT FALSE'))
+
 with app.app_context():
     db.create_all()
+    add_missing_columns()
 
     if User.query.count() == 0:
-        initial_password = os.getenv('ADMIN_PASSWORD') or secrets.token_urlsafe(12)
-        admin = User(username='admin', email='admin@example.com', role='admin')
+        initial_password = os.getenv('ADMIN_PASSWORD') or generate_temp_password()
+        admin = User(username='admin', email='admin@example.com', role='admin', must_change_password=True)
         admin.set_password(initial_password)
         db.session.add(admin)
         db.session.commit()
         if os.getenv('ADMIN_PASSWORD'):
             print("Created initial admin user 'admin' with the password from ADMIN_PASSWORD")
         else:
-            print(f"Created initial admin user 'admin' with password: {initial_password}")
-            print("Log in and change it from Manage Users > Reset Password.")
+            print(f"Created initial admin user 'admin' with temporary password: {initial_password}")
     else:
+        # Still on the old well-known default: make them pick a new one at next login
         default_admin = User.query.filter_by(username='admin').first()
-        if default_admin and default_admin.check_password('admin123'):
-            print("WARNING: the 'admin' account still uses the default password 'admin123'. "
-                  "Change it from Manage Users > Reset Password.")
+        if default_admin and not default_admin.must_change_password and default_admin.check_password('admin123'):
+            default_admin.must_change_password = True
+            db.session.commit()
+            print("The 'admin' account uses the default password 'admin123'; "
+                  "it will be asked to set a new one at next login.")
 
 # Recurring jobs: flag overdue tasks hourly, remind assignees of upcoming tasks
 scheduler.add_job(
