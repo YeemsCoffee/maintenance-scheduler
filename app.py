@@ -25,8 +25,11 @@ database_url = os.getenv('DATABASE_URL')
 if not database_url:
     print("ERROR: DATABASE_URL environment variable is required!")
     sys.exit(1)
-if database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+# Name the driver explicitly: SQLAlchemy 2.1+ defaults postgresql:// to
+# psycopg 3, but this app installs psycopg2
+for prefix in ('postgres://', 'postgresql://'):
+    if database_url.startswith(prefix):
+        database_url = 'postgresql+psycopg2://' + database_url[len(prefix):]
 
 app = Flask(__name__)
 
